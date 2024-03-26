@@ -1,1 +1,9 @@
-# Concurrent-Tetris
+tetris
+=====
+
+An OTP library
+
+Build
+-----
+
+    $ rebar3 compile
