@@ -4,6 +4,43 @@
 
 -export([hello_world/0]).
 
+%%% macros!
+-define(Rotation_T, [[{0, 2}, {1, 0}, {0, -2}], 
+                     [{1, 0}, {0, -2}, {-1, 0}], 
+                     [{0, -2}, {-1, 0}, {0, 2}], 
+                     [{-1, 0}, {0, 2}, {1, 0}]]).
+
+-define(Rotation_Left, [[{0, -2}, {0, 2}, {-1, 2}], 
+                        [{-1, 0}, {1, 0}, {1, 2}], 
+                        [{1, -2}, {0, -2}, {0, 2}], 
+                        [{-1, -2}, {-1, 0}, {1, 0}]]).
+
+-define(Rotation_Right, [[{-1, -2}, {0, -2}, {0, 2}], 
+                         [{-1, 0}, {-1, 2}, {1, 0}], 
+                         [{0, -2}, {0, 2}, {1, 2}], 
+                         [{-1, 0}, {1, -2}, {1, 0}]]).
+
+-define(Rotation_Square, [[{0, 2}, {1, 0}, {1, 2}],
+                          [{0, 2}, {1, 0}, {1, 2}],
+                          [{0, 2}, {1, 0}, {1, 2}],
+                          [{0, 2}, {1, 0}, {1, 2}]]).
+
+-define(Rotation_Zigz, [[{0, -2}, {1, 0}, {1, 2}], 
+                        [{1, -2}, {0, -2}, {-1, 0}], 
+                        [{-1, -2}, {-1, 0}, {0, 2}], 
+                        [{1, 0}, {0, 2}, {-1, 2}]]).
+
+-define(Rotation_Zags, [[{1, -2}, {1, 0}, {0, 2}], 
+                        [{-1, -2}, {0, -2}, {1, 0}], 
+                        [{0, -2}, {-1, 0}, {-1, 2}], 
+                        [{-1, 0}, {0, 2}, {1, 2}]]).
+
+-define(Rotation_Line, [[{-2, 0}, {-1, 0}, {1, 0}], 
+                        [{0, -4}, {0, -2}, {0, 2}], 
+                        [{-1, 2}, {1, 2}, {2, 2}], 
+                        [{1, -2}, {1, 2}, {1, 4}]]).
+
+
 hello_world() -> 
     application:start(cecho),
     ok = cecho:cbreak(),
@@ -58,7 +95,7 @@ hello_world() ->
     cecho:move(MaxRow-1, MaxCol-1),
     cecho:addch($@),
 
-    T = generate_t({MaxRow div 2, MaxCol div 2}),
+    T = generate_tetromino(line, {MaxRow div 2, MaxCol div 2}),
     draw_tetromino(T),
     cecho:refresh(),
     wait_for_input(T).
@@ -83,11 +120,21 @@ hello_world() ->
 %%%     Right arrow: move right
 %%%     Left arrow: move left
 %%%     Down arrow: move down
-%%%
 
+generate_tetromino(Type, {Row, Col}) ->
+    {Type, 0, {Row, Col}, get_rot(Type, 0)}.
 
-generate_t({Row, Col}) ->
-    {t, 0, {Row, Col}, [{0, 2}, {1, 0}, {0, -2}]}.
+get_rot(Type, Rotation) ->
+    case Type of 
+        t -> List = ?Rotation_T;
+        left -> List = ?Rotation_Left;
+        right -> List = ?Rotation_Right;
+        square -> List = ?Rotation_Square;
+        zigz -> List = ?Rotation_Zigz;
+        zags -> List = ?Rotation_Zags;
+        line -> List = ?Rotation_Line
+    end,
+    lists:nth(Rotation + 1, List).
 
 % draw tetromino
 draw_tetromino({Type, _Rotation, {CenterRow, CenterCol}, Cells}) ->
@@ -95,7 +142,7 @@ draw_tetromino({Type, _Rotation, {CenterRow, CenterCol}, Cells}) ->
     draw_tetris_square({CenterRow, CenterCol}),
     lists:foreach(fun ({R, C}) -> draw_tetris_square({R + CenterRow, C + CenterCol}) end, Cells).
 
-% delete tetromino 
+% delete tetromino
 % We have to remove a tetromino before redrawing it every time we make a move.
 % Right now, the background is not set, so this makes it look like a 
 % gray trail is always following the piece
@@ -110,7 +157,10 @@ set_color(Type) ->
         t -> Color = 92; % PURPLE
         square -> Color = 3; % YELLOW
         left -> Color = 203; % ORANGE
-        right -> Color = 4 % BLUE
+        right -> Color = 4; % BLUE
+        zigz -> Color = 1;
+        zags -> Color = 2;
+        line -> Color = 3
     end, cecho:attron(?ceCOLOR_PAIR(Color)).
 
 % rotates a tetromino
@@ -125,15 +175,12 @@ rotate_tetromino(Direction, {Type, Rotation, {CenterRow, CenterCol}, _Cells}) ->
     
     % we only support rotating a T right now--we will add a case statement here 
     % for each type of piece and potential call piece-specific rotate functions
-    Rotation_T = [[{0, 2}, {1, 0}, {0, -2}], 
-              [{1, 0}, {0, -2}, {-1, 0}], 
-              [{0, -2}, {-1, 0}, {0, 2}], 
-              [{-1, 0}, {0, 2}, {1, 0}]],
+    
 
     % erlang does not support negative modding, so we add 4 here to always 
     % ensure that it's positive
     NewR = (Rotation + Direction + 4) rem 4,
-    {Type, NewR, {CenterRow, CenterCol}, lists:nth((NewR + 1), Rotation_T)}.
+    {Type, NewR, {CenterRow, CenterCol}, get_rot(Type, NewR)}.
 
 draw_tetris_square({Row, Col}) ->
     cecho:mvaddstr(Row, Col, "[]"), ok.
