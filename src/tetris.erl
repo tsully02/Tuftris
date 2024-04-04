@@ -1,45 +1,9 @@
 -module(tetris).
 
 -include_lib("../cecho/include/cecho.hrl").
+-include_lib("tetris.hrl").
 
 -export([hello_world/0]).
-
-%%% macros!
--define(Rotation_T, [[{0, 2}, {1, 0}, {0, -2}], 
-                     [{1, 0}, {0, -2}, {-1, 0}], 
-                     [{0, -2}, {-1, 0}, {0, 2}], 
-                     [{-1, 0}, {0, 2}, {1, 0}]]).
-
--define(Rotation_Left, [[{0, -2}, {0, 2}, {-1, 2}], 
-                        [{-1, 0}, {1, 0}, {1, 2}], 
-                        [{1, -2}, {0, -2}, {0, 2}], 
-                        [{-1, -2}, {-1, 0}, {1, 0}]]).
-
--define(Rotation_Right, [[{-1, -2}, {0, -2}, {0, 2}], 
-                         [{-1, 0}, {-1, 2}, {1, 0}], 
-                         [{0, -2}, {0, 2}, {1, 2}], 
-                         [{-1, 0}, {1, -2}, {1, 0}]]).
-
--define(Rotation_Square, [[{0, 2}, {1, 0}, {1, 2}],
-                          [{0, 2}, {1, 0}, {1, 2}],
-                          [{0, 2}, {1, 0}, {1, 2}],
-                          [{0, 2}, {1, 0}, {1, 2}]]).
-
--define(Rotation_Zigz, [[{0, -2}, {1, 0}, {1, 2}], 
-                        [{1, -2}, {0, -2}, {-1, 0}], 
-                        [{-1, -2}, {-1, 0}, {0, 2}], 
-                        [{1, 0}, {0, 2}, {-1, 2}]]).
-
--define(Rotation_Zags, [[{1, -2}, {1, 0}, {0, 2}], 
-                        [{-1, -2}, {0, -2}, {1, 0}], 
-                        [{0, -2}, {-1, 0}, {-1, 2}], 
-                        [{-1, 0}, {0, 2}, {1, 2}]]).
-
--define(Rotation_Line, [[{-2, 0}, {-1, 0}, {1, 0}], 
-                        [{0, -4}, {0, -2}, {0, 2}], 
-                        [{-1, 2}, {1, 2}, {2, 2}], 
-                        [{1, -2}, {1, 2}, {1, 4}]]).
-
 
 hello_world() -> 
     application:start(cecho),
@@ -198,7 +162,7 @@ move_right({Type, Rotation, {CenterRow, CenterCol}, Cells}) ->
     move_tetromino({CenterRow, CenterCol + 2}, {Type, Rotation, {CenterRow, CenterCol}, Cells}).
 
 % move tetromino to specified coordinate (will be used for implementing space)
-move_tetromino({Row, Col}, {Type, Rotation, Center, Cells}) ->
+move_tetromino({Row, Col}, {Type, Rotation, _Center, Cells}) ->
     {Type, Rotation, {Row, Col}, Cells}.
 
 wait_for_input(Tetromino) ->
@@ -241,35 +205,35 @@ wait_for_input(Tetromino) ->
             wait_for_input(Tetromino)
     end.
 
-add_horiz_line_c(_, _, 0, ColorNum) -> ColorNum;
-add_horiz_line_c(Row, Col, Length, ColorNum) ->
-    cecho:init_pair(ColorNum, ?ceCOLOR_BLACK, ColorNum),
-    cecho:attron(?ceCOLOR_PAIR(ColorNum)),
-    cecho:mvaddch(Row, Col, $ ),
-    add_horiz_line_c(Row, Col + 1, Length - 1, ColorNum + 1).
+% add_horiz_line_c(_, _, 0, ColorNum) -> ColorNum;
+% add_horiz_line_c(Row, Col, Length, ColorNum) ->
+%     cecho:init_pair(ColorNum, ?ceCOLOR_BLACK, ColorNum),
+%     cecho:attron(?ceCOLOR_PAIR(ColorNum)),
+%     cecho:mvaddch(Row, Col, $ ),
+%     add_horiz_line_c(Row, Col + 1, Length - 1, ColorNum + 1).
 
-add_horiz_line(EndRow, EndCol, 0) -> {EndRow, EndCol};
-add_horiz_line(Row, Col, Length) when Length rem 2 == 0 ->
-    cecho:attron(?ceCOLOR_PAIR(60)),
-    cecho:mvaddch(Row, Col, $ ),
-    add_horiz_line(Row, Col + 1, Length - 1);
-add_horiz_line(Row, Col, Length) when Length rem 2 == 1 ->
-    cecho:attron(?ceCOLOR_PAIR(8)),
-    cecho:mvaddch(Row, Col, $ ),
-    add_horiz_line(Row, Col + 1, Length - 1).
+% add_horiz_line(EndRow, EndCol, 0) -> {EndRow, EndCol};
+% add_horiz_line(Row, Col, Length) when Length rem 2 == 0 ->
+%     cecho:attron(?ceCOLOR_PAIR(60)),
+%     cecho:mvaddch(Row, Col, $ ),
+%     add_horiz_line(Row, Col + 1, Length - 1);
+% add_horiz_line(Row, Col, Length) when Length rem 2 == 1 ->
+%     cecho:attron(?ceCOLOR_PAIR(8)),
+%     cecho:mvaddch(Row, Col, $ ),
+%     add_horiz_line(Row, Col + 1, Length - 1).
 
-add_check_horiz_line(EndRow, EndCol, 0) -> {EndRow, EndCol};
-add_check_horiz_line(Row, Col, Length) when Length rem 2 == 0 ->
-    cecho:attron(?ceCOLOR_PAIR(60)),
-    draw_square({Row, Col}),
-    add_check_horiz_line(Row, Col + 2, Length - 1);
-add_check_horiz_line(Row, Col, Length) when Length rem 2 == 1 ->
-    cecho:attron(?ceCOLOR_PAIR(8)),
-    draw_square({Row, Col}),
-    add_check_horiz_line(Row, Col + 2, Length - 1).
+% add_check_horiz_line(EndRow, EndCol, 0) -> {EndRow, EndCol};
+% add_check_horiz_line(Row, Col, Length) when Length rem 2 == 0 ->
+%     cecho:attron(?ceCOLOR_PAIR(60)),
+%     draw_square({Row, Col}),
+%     add_check_horiz_line(Row, Col + 2, Length - 1);
+% add_check_horiz_line(Row, Col, Length) when Length rem 2 == 1 ->
+%     cecho:attron(?ceCOLOR_PAIR(8)),
+%     draw_square({Row, Col}),
+%     add_check_horiz_line(Row, Col + 2, Length - 1).
 
-add_vert_line(EndRow, EndCol, 0) -> {EndRow, EndCol};
-add_vert_line(Row, Col, Length) ->
-    cecho:mvaddch(Row, Col, $|),
-    add_vert_line(Row + 1, Col, Length - 1).
+% add_vert_line(EndRow, EndCol, 0) -> {EndRow, EndCol};
+% add_vert_line(Row, Col, Length) ->
+%     cecho:mvaddch(Row, Col, $|),
+%     add_vert_line(Row + 1, Col, Length - 1).
     
