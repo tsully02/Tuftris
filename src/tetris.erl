@@ -6,62 +6,10 @@
 -export([hello_world/0]).
 
 hello_world() -> 
-    application:start(cecho),
-    ok = cecho:cbreak(),
-    ok = cecho:noecho(),
-    ok = cecho:curs_set(?ceCURS_INVISIBLE),
-    cecho:keypad(?ceSTDSCR, true),
-    ok = cecho:start_color(),
-    ok = cecho:init_pair(1, ?ceCOLOR_BLACK, ?ceCOLOR_RED),
-    ok = cecho:init_pair(2, ?ceCOLOR_BLACK, ?ceCOLOR_GREEN),
-    ok = cecho:init_pair(3, ?ceCOLOR_BLACK, ?ceCOLOR_YELLOW),
-    ok = cecho:init_pair(4, ?ceCOLOR_BLACK, ?ceCOLOR_BLUE),
-    ok = cecho:init_pair(5, ?ceCOLOR_BLACK, ?ceCOLOR_MAGENTA),
-    ok = cecho:init_pair(6, ?ceCOLOR_BLACK, ?ceCOLOR_CYAN),
-    ok = cecho:init_pair(7, ?ceCOLOR_BLACK, ?ceCOLOR_WHITE),
-    ok = cecho:init_pair(8, ?ceCOLOR_BLACK, ?ceCOLOR_BLACK),
-    ok = cecho:init_pair(9, ?ceCOLOR_BLACK, 9),
-    ok = cecho:init_pair(60, ?ceCOLOR_BLACK, 60), % GRAY
-    ok = cecho:init_pair(203, ?ceCOLOR_BLACK, 203), % ORANGE
-    ok = cecho:init_pair(92, ?ceCOLOR_BLACK, 92), % PURPLE
-    {MaxRow, MaxCol} = cecho:getmaxyx(),
-    cecho:move(10,10),
-    % {EndVertRow, EndVertCol} = add_vert_line(45, 49, 10),
-    cecho:attron(?ceCOLOR_PAIR(9)),
-    % add_check_horiz_line(EndVertRow, EndVertCol + 1, 10),
-    cecho:attron(?ceCOLOR_PAIR(2)),
-        % timer:sleep(1000),
-    % delete_tetromino(T),
-    % T2 = rotate_tetromino_clock(T),
-    % draw_tetromino(T2),
-    % cecho:refresh(),
-    % io:format("~p~n", [T]),
-    % io:format("~p~n", [T2]),
-    % % draw_t(50, 50),
-    % timer:sleep(1000),
-
-    % delete_tetromino(T2),
-    % T3 = rotate_tetromino_clock(T2),
-    % draw_tetromino(T3),
-    % cecho:refresh(),
-
-    %% print out a ton of colors in a line
-    % peach = 200
-    % Color = add_horiz_line_c(30, 0, 91, 0),
-    % cecho:addstr(io_lib:format("~p", [Color])),
-
-    cecho:move(0, 0),
-    cecho:addch($@),
-    cecho:move(MaxRow-1, 0),
-    cecho:addch($@),
-    cecho:move(0, MaxCol-1),
-    cecho:addch($@),
-    cecho:move(MaxRow-1, MaxCol-1),
-    cecho:addch($@),
+    {KeyPid, MaxRow, MaxCol} = tetris_io:init(),
 
     T = generate_tetromino(line, {MaxRow div 2, MaxCol div 2}),
     draw_tetromino(T),
-    cecho:refresh(),
     wait_for_input(T).
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -104,7 +52,8 @@ get_rot(Type, Rotation) ->
 draw_tetromino({Type, _Rotation, {CenterRow, CenterCol}, Cells}) ->
     set_color(Type),
     draw_tetris_square({CenterRow, CenterCol}),
-    lists:foreach(fun ({R, C}) -> draw_tetris_square({R + CenterRow, C + CenterCol}) end, Cells).
+    lists:foreach(fun ({R, C}) -> draw_tetris_square({R + CenterRow, C + CenterCol}) end, Cells),
+    cecho:refresh().
 
 % delete tetromino
 % We have to remove a tetromino before redrawing it every time we make a move.
@@ -165,44 +114,53 @@ move_right({Type, Rotation, {CenterRow, CenterCol}, Cells}) ->
 move_tetromino({Row, Col}, {Type, Rotation, _Center, Cells}) ->
     {Type, Rotation, {Row, Col}, Cells}.
 
-wait_for_input(Tetromino) ->
-    C = cecho:getch(),
-    case C of 
+process_key(Key, Tetromino) -> 
+    case Key of 
         % using q here instead of ?ceKEY_ESC because the latter seems to be slow
-        $q -> 
-            application:stop(cecho);
         ?ceKEY_UP ->
             delete_tetromino(Tetromino),
             NewT = rotate_tetromino(1, Tetromino),
             draw_tetromino(NewT),
-            cecho:refresh(),
-            wait_for_input(NewT);
+            NewT;
         ?ceKEY_LEFT ->
             delete_tetromino(Tetromino),
             NewT = move_left(Tetromino),
             draw_tetromino(NewT),
-            cecho:refresh(),
-            wait_for_input(NewT);
+            NewT;
         ?ceKEY_RIGHT ->
             delete_tetromino(Tetromino),
             NewT = move_right(Tetromino),
             draw_tetromino(NewT),
-            cecho:refresh(),
-            wait_for_input(NewT);
+            NewT;
         ?ceKEY_DOWN ->
             delete_tetromino(Tetromino),
             NewT = move_down(Tetromino),
             draw_tetromino(NewT),
-            cecho:refresh(),
-            wait_for_input(NewT);
+            NewT;
         $z -> 
             delete_tetromino(Tetromino),
             NewT = rotate_tetromino(-1, Tetromino),
             draw_tetromino(NewT),
-            cecho:refresh(),
-            wait_for_input(NewT);
+            NewT;
+        ?KEY_RESIZE ->
+            delete_tetromino(Tetromino),
+            NewT = rotate_tetromino(-1, Tetromino),
+            draw_tetromino(NewT),
+            NewT;
         _ -> 
-            wait_for_input(Tetromino)
+            Tetromino
+    end.
+
+wait_for_input(Tetromino) ->
+    receive
+        {_Pid, key, $q} -> 
+            tetris_io:stop(),
+            io:format("Thanks for playing!~n");
+        {_Pid, key, Key} -> 
+            NewTetromino = process_key(Key, Tetromino),
+            wait_for_input(NewTetromino);
+        Other ->
+            io:format("Client Unexpected msg: ~p~n", [Other])
     end.
 
 % add_horiz_line_c(_, _, 0, ColorNum) -> ColorNum;
