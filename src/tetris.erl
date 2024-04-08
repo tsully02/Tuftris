@@ -6,11 +6,11 @@
 -export([hello_world/0]).
 
 hello_world() -> 
-    {KeyPid, MaxRow, MaxCol} = tetris_io:init(),
-
-    T = generate_tetromino(line, {MaxRow div 2, MaxCol div 2}),
-    draw_tetromino(T),
-    wait_for_input(T).
+    {_KeyPid, MaxRow, MaxCol} = tetris_io:init(),
+    Win = tetris_io:calc_game_win_coords(?BOARD_WIDTH, ?BOARD_HEIGHT),
+    T = generate_tetromino(line, {?BOARD_HEIGHT div 2, ?BOARD_WIDTH div 2}),
+    draw_tetromino(T, Win),
+    wait_for_input(T, Win).
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %%% Piece Tuple Notation:
@@ -36,46 +36,6 @@ hello_world() ->
 generate_tetromino(Type, {Row, Col}) ->
     {Type, 0, {Row, Col}, get_rot(Type, 0)}.
 
-get_rot(Type, Rotation) ->
-    case Type of 
-        t -> List = ?Rotation_T;
-        left -> List = ?Rotation_Left;
-        right -> List = ?Rotation_Right;
-        square -> List = ?Rotation_Square;
-        zigz -> List = ?Rotation_Zigz;
-        zags -> List = ?Rotation_Zags;
-        line -> List = ?Rotation_Line
-    end,
-    lists:nth(Rotation + 1, List).
-
-% draw tetromino
-draw_tetromino({Type, _Rotation, {CenterRow, CenterCol}, Cells}) ->
-    set_color(Type),
-    draw_tetris_square({CenterRow, CenterCol}),
-    lists:foreach(fun ({R, C}) -> draw_tetris_square({R + CenterRow, C + CenterCol}) end, Cells),
-    cecho:refresh().
-
-% delete tetromino
-% We have to remove a tetromino before redrawing it every time we make a move.
-% Right now, the background is not set, so this makes it look like a 
-% gray trail is always following the piece
-delete_tetromino({_Type, _Rotation, {CenterRow, CenterCol}, Cells}) ->
-    cecho:attron(?ceCOLOR_PAIR(60)), % gray
-    draw_square({CenterRow, CenterCol}),
-    lists:foreach(fun ({R, C}) -> draw_square({R + CenterRow, C + CenterCol}) end, Cells).
-
-% set color for each piece before printing, based on piece type
-set_color(Type) ->
-    case Type of 
-        t -> Color = 92; % PURPLE
-        square -> Color = 3; % YELLOW
-        left -> Color = 203; % ORANGE
-        right -> Color = 4; % BLUE
-        zigz -> Color = 1;
-        zags -> Color = 2;
-        line -> Color = 3
-    end, cecho:attron(?ceCOLOR_PAIR(Color)).
-
 % rotates a tetromino
 % If Direction = 1, rotates clockwise, if -1, rotates counter clockwise
 % 
@@ -93,13 +53,74 @@ rotate_tetromino(Direction, {Type, Rotation, {CenterRow, CenterCol}, _Cells}) ->
     % erlang does not support negative modding, so we add 4 here to always 
     % ensure that it's positive
     NewR = (Rotation + Direction + 4) rem 4,
-    {Type, NewR, {CenterRow, CenterCol}, get_rot(Type, NewR)}.
+    NewCells = get_rot(Type, NewR),
+    NewCenter = case Type of 
+                    line ->
+                    case Rotation of
+                        0 when Direction == -1-> 
+                            change_line_center({CenterRow, CenterCol}, 0);
+                        1 when Direction == 1-> 
+                            change_line_center({CenterRow, CenterCol}, 0);
+                        2 when Direction == -1-> 
+                            change_line_center({CenterRow, CenterCol}, 1);
+                        3 when Direction == 1-> 
+                            change_line_center({CenterRow, CenterCol}, 1);
+                        _ -> {CenterRow, CenterCol}
+                    end;
+                    _ -> {CenterRow, CenterCol}
+    end,
+    {Type, NewR, NewCenter, NewCells}.
 
-draw_tetris_square({Row, Col}) ->
-    cecho:mvaddstr(Row, Col, "[]"), ok.
+change_line_center({CenterRow, CenterCol}, ChangeIndex) ->
+    List = ?Rotation_Line_Centers,
+    {ChangeRow, ChangeCol} = lists:nth(ChangeIndex + 1, List),
+    {CenterRow + ChangeRow, CenterCol + ChangeCol}.
 
-draw_square({Row, Col}) ->
-    cecho:mvaddstr(Row, Col, "  ").
+get_rot(Type, Rotation) ->
+    case Type of 
+        t -> List = ?Rotation_T;
+        left -> List = ?Rotation_Left;
+        right -> List = ?Rotation_Right;
+        square -> List = ?Rotation_Square;
+        zigz -> List = ?Rotation_Zigz;
+        zags -> List = ?Rotation_Zags;
+        line -> List = ?Rotation_Line
+    end,
+    lists:nth(Rotation + 1, List).
+
+% draw tetromino
+draw_tetromino({Type, _Rotation, {CenterRow, CenterCol}, Cells}, Win) ->
+    set_color(Type),
+    draw_tetris_square({CenterRow, CenterCol}, Win),
+    lists:foreach(fun ({R, C}) -> draw_tetris_square({R + CenterRow, C + CenterCol}, Win) end, Cells),
+    cecho:refresh().
+
+% delete tetromino
+% We have to remove a tetromino before redrawing it every time we make a move.
+% Right now, the background is not set, so this makes it look like a 
+% gray trail is always following the piece
+delete_tetromino({_Type, _Rotation, {CenterRow, CenterCol}, Cells}, Win) ->
+    cecho:attron(?ceCOLOR_PAIR(235)), % gray
+    draw_square({CenterRow, CenterCol}, Win),
+    lists:foreach(fun ({R, C}) -> draw_square({R + CenterRow, C + CenterCol}, Win) end, Cells).
+
+% set color for each piece before printing, based on piece type
+set_color(Type) ->
+    case Type of 
+        t -> Color = 92; % PURPLE
+        square -> Color = 3; % YELLOW
+        left -> Color = 203; % ORANGE
+        right -> Color = 4; % BLUE
+        zigz -> Color = 1;
+        zags -> Color = 2;
+        line -> Color = 3
+    end, cecho:attron(?ceCOLOR_PAIR(Color)).
+
+draw_tetris_square({Row, Col}, {WinY, WinX}) ->
+    cecho:mvaddstr(Row + WinY, Col + WinX, "[]"), ok.   
+
+draw_square({Row, Col}, {WinY, WinX}) ->
+    cecho:mvaddstr(Row + WinY, Col + WinX, "  ").
 
 move_left({Type, Rotation, {CenterRow, CenterCol}, Cells}) ->
     move_tetromino({CenterRow, CenterCol - 2}, {Type, Rotation, {CenterRow, CenterCol}, Cells}).
@@ -111,54 +132,59 @@ move_right({Type, Rotation, {CenterRow, CenterCol}, Cells}) ->
     move_tetromino({CenterRow, CenterCol + 2}, {Type, Rotation, {CenterRow, CenterCol}, Cells}).
 
 % move tetromino to specified coordinate (will be used for implementing space)
+% move_tetromino({Row, Col}, {Type, Rotation, _Center, Cells}) when Row < 0 ->
+%     {Type, Rotation, {0, Col}, Cells};
+% move_tetromino({Row, Col}, {Type, Rotation, _Center, Cells}) when Col < 0 ->
+%     {Type, Rotation, {Row, 0}, Cells};
 move_tetromino({Row, Col}, {Type, Rotation, _Center, Cells}) ->
     {Type, Rotation, {Row, Col}, Cells}.
 
-process_key(Key, Tetromino) -> 
+process_key(Key, Tetromino, Win) -> 
     case Key of 
         % using q here instead of ?ceKEY_ESC because the latter seems to be slow
         ?ceKEY_UP ->
-            delete_tetromino(Tetromino),
+            delete_tetromino(Tetromino, Win),
             NewT = rotate_tetromino(1, Tetromino),
-            draw_tetromino(NewT),
-            NewT;
+            draw_tetromino(NewT, Win),
+            {Win, NewT};
         ?ceKEY_LEFT ->
-            delete_tetromino(Tetromino),
+            delete_tetromino(Tetromino, Win),
             NewT = move_left(Tetromino),
-            draw_tetromino(NewT),
-            NewT;
+            % NewT = check_bounds(NewT, Tetromino),
+            draw_tetromino(NewT, Win),
+            {Win, NewT};
         ?ceKEY_RIGHT ->
-            delete_tetromino(Tetromino),
+            delete_tetromino(Tetromino, Win),
             NewT = move_right(Tetromino),
-            draw_tetromino(NewT),
-            NewT;
+            draw_tetromino(NewT, Win),
+            {Win, NewT};
         ?ceKEY_DOWN ->
-            delete_tetromino(Tetromino),
+            delete_tetromino(Tetromino, Win),
             NewT = move_down(Tetromino),
-            draw_tetromino(NewT),
-            NewT;
+            draw_tetromino(NewT, Win),
+            {Win, NewT};
         $z -> 
-            delete_tetromino(Tetromino),
+            delete_tetromino(Tetromino, Win),
             NewT = rotate_tetromino(-1, Tetromino),
-            draw_tetromino(NewT),
-            NewT;
+            draw_tetromino(NewT, Win),
+            {Win, NewT};
         ?KEY_RESIZE ->
-            delete_tetromino(Tetromino),
-            NewT = rotate_tetromino(-1, Tetromino),
-            draw_tetromino(NewT),
-            NewT;
+            delete_tetromino(Tetromino, Win),  % Delete old tetromino
+            NewWin = tetris_io:calc_game_win_coords(?BOARD_WIDTH, ?BOARD_HEIGHT),
+            draw_tetromino(Tetromino, NewWin),
+            {NewWin, Tetromino};
         _ -> 
-            Tetromino
+            {Win, Tetromino}
     end.
 
-wait_for_input(Tetromino) ->
+wait_for_input(Tetromino, Win) ->
     receive
         {_Pid, key, $q} -> 
             tetris_io:stop(),
             io:format("Thanks for playing!~n");
         {_Pid, key, Key} -> 
-            NewTetromino = process_key(Key, Tetromino),
-            wait_for_input(NewTetromino);
+            {NewWin, NewTetromino} = process_key(Key, Tetromino, Win),
+            wait_for_input(NewTetromino, NewWin);
         Other ->
             io:format("Client Unexpected msg: ~p~n", [Other])
     end.

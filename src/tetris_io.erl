@@ -2,7 +2,7 @@
 
 -include_lib("../cecho/include/cecho.hrl").
 
--export([init/0, stop/0, spawn_keyboard_proc/0]).
+-export([init/0, stop/0, spawn_keyboard_proc/0, calc_game_win_coords/2]).
 
 init() ->
     application:start(cecho),
@@ -23,6 +23,7 @@ init() ->
     ok = cecho:init_pair(60, ?ceCOLOR_BLACK, 60), % GRAY
     ok = cecho:init_pair(203, ?ceCOLOR_BLACK, 203), % ORANGE
     ok = cecho:init_pair(92, ?ceCOLOR_BLACK, 92), % PURPLE
+    ok = cecho:init_pair(235, ?ceCOLOR_BLACK, 235), % BACKGROUND
     {MaxRow, MaxCol} = cecho:getmaxyx(),
     cecho:move(10,10),
     % {EndVertRow, EndVertCol} = add_vert_line(45, 49, 10),
@@ -50,6 +51,8 @@ init() ->
     % peach = 200
     % Color = add_horiz_line_c(30, 0, 91, 0),
     % cecho:addstr(io_lib:format("~p", [Color])),
+    % 
+    % BACKGROUND COLOR 235!!
     %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
     cecho:move(0, 0),
@@ -82,4 +85,23 @@ spawn_keyboard_proc() ->
     Client = self(),
     spawn_link(fun () -> keyboard_loop(Client) end).
 
+add_horiz_line_c(_, _, 0, ColorNum) -> ColorNum;
+add_horiz_line_c(Row, Col, Length, ColorNum) ->
+    cecho:init_pair(ColorNum, ?ceCOLOR_BLACK, ColorNum),
+    cecho:attron(?ceCOLOR_PAIR(ColorNum)),
+    cecho:mvaddch(Row, Col, $ ),
+    add_horiz_line_c(Row, Col + 1, Length - 1, ColorNum + 1).
 
+calc_game_win_coords(Width, Height) ->
+    {MaxRow, MaxCol} = cecho:getmaxyx(),
+    BeginX = (MaxCol - Width) div 2,
+    BeginY = (MaxRow - Height) div 2,
+    {BeginY, BeginX}.
+
+recenter_game_win(Win, Width, Height) ->
+    {Y, X} = calc_game_win_coords(Width, Height),
+    cecho:mvwin(Win, Y, X).
+
+create_game_win(Width, Height) ->
+    {Y, X} = calc_game_win_coords(Width, Height),
+    cecho:newwin(Width, Height, Y, X).
