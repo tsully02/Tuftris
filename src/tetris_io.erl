@@ -23,7 +23,8 @@ init() ->
     ok = cecho:init_pair(60, ?ceCOLOR_BLACK, 60), % GRAY
     ok = cecho:init_pair(203, ?ceCOLOR_BLACK, 203), % ORANGE
     ok = cecho:init_pair(92, ?ceCOLOR_BLACK, 92), % PURPLE
-    ok = cecho:init_pair(235, ?ceCOLOR_BLACK, 235), % BACKGROUND
+    ok = cecho:init_pair(234, ?ceCOLOR_BLACK, 234), % BACKGROUND
+    ok = cecho:init_pair(39, ?ceCOLOR_BLACK, 39), % BACKGROUND
     {MaxRow, MaxCol} = cecho:getmaxyx(),
     cecho:move(10,10),
     % {EndVertRow, EndVertCol} = add_vert_line(45, 49, 10),

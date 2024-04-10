@@ -24,7 +24,7 @@ hello_world() ->
 %%% Cells: Location of cells, relative to the center (add the cell values to the 
 %%%             center coords to get the cell coords)
 %%%
-%%% Right now the program places a T in the middle of the screen, and supports 
+%%% Right now the program places a piece in the middle of the screen, and supports 
 %%% the following keyboard inputs (see wait_for_input/1)
 %%%     q: quit
 %%%     Up arrow: rotate clockwise
@@ -100,7 +100,7 @@ draw_tetromino({Type, _Rotation, {CenterRow, CenterCol}, Cells}, Win) ->
 % Right now, the background is not set, so this makes it look like a 
 % gray trail is always following the piece
 delete_tetromino({_Type, _Rotation, {CenterRow, CenterCol}, Cells}, Win) ->
-    cecho:attron(?ceCOLOR_PAIR(235)), % gray
+    cecho:attron(?ceCOLOR_PAIR(234)), % gray
     draw_square({CenterRow, CenterCol}, Win),
     lists:foreach(fun ({R, C}) -> draw_square({R + CenterRow, C + CenterCol}, Win) end, Cells).
 
@@ -113,7 +113,7 @@ set_color(Type) ->
         right -> Color = 4; % BLUE
         zigz -> Color = 1;
         zags -> Color = 2;
-        line -> Color = 3
+        line -> Color = 39
     end, cecho:attron(?ceCOLOR_PAIR(Color)).
 
 draw_tetris_square({Row, Col}, {WinY, WinX}) ->
