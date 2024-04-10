@@ -159,13 +159,13 @@ draw_square({Row, Col}, {WinY, WinX}, Color) ->
     cecho:mvaddstr(Row + WinY, Col + WinX, "  ").
 
 move_left({Type, Rotation, {CenterRow, CenterCol}, Cells}) ->
-    move_tetromino({CenterRow, CenterCol - 2}, {Type, Rotation, {CenterRow, CenterCol}, Cells}).
+    move_tetromino({CenterRow, CenterCol - 1}, {Type, Rotation, {CenterRow, CenterCol}, Cells}).
 
 move_down({Type, Rotation, {CenterRow, CenterCol}, Cells}) ->
     move_tetromino({CenterRow + 1, CenterCol}, {Type, Rotation, {CenterRow, CenterCol}, Cells}).
 
 move_right({Type, Rotation, {CenterRow, CenterCol}, Cells}) ->
-    move_tetromino({CenterRow, CenterCol + 2}, {Type, Rotation, {CenterRow, CenterCol}, Cells}).
+    move_tetromino({CenterRow, CenterCol + 1}, {Type, Rotation, {CenterRow, CenterCol}, Cells}).
 
 % move tetromino to specified coordinate (will be used for implementing space)
 % move_tetromino({Row, Col}, {Type, Rotation, _Center, Cells}) when Row < 0 ->
