@@ -5,12 +5,52 @@
 
 -export([hello_world/0]).
 
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%% CHANGES THAT AMELIA AND TREVOR MADE:
+%%% 
+%%% We added a board data structure, which is a 2D array of tuples:
+%%% 
+%%%     {Boolean, Color}
+%%% 
+%%% Where Boolean indicates if a placed block is in that cell, and Color is the 
+%%% color of that cell. 
+%%% 
+%%% We changed everything that uses coordinates so that everything that (will 
+%%% eventually) live in the io file multiplies column coordinates by 2. That 
+%%% way, the indexing of cells is normal in the client and server, and the IO 
+%%% module is the only module that knows that cells are actually 2 wide. The 
+%%% macros have been changed accordingly, and the Board data structure is 
+%%% indexed like this. 
+%%% 
+%%% We also generate piece at the top of the board. We also changed it so that 
+%%% the piece coordinates are relative to the board, so all drawing functions 
+%%% have the Window passed in. 
+%%% 
+%%% Next steps:
+%%%     1. Add getters for elements in the board data structure (maybe make a
+%%%         new module?)
+%%%     2. Pass in board to delete_tetromino so we can get the correct 
+%%%         background color
+%%%     3. Add bounds checking for the board
+
+
 hello_world() -> 
-    {_KeyPid, MaxRow, MaxCol} = tetris_io:init(),
+    {_KeyPid, _MaxRow, _MaxCol} = tetris_io:init(),
     Win = tetris_io:calc_game_win_coords(?BOARD_WIDTH, ?BOARD_HEIGHT),
-    T = generate_tetromino(line, {?BOARD_HEIGHT div 2, ?BOARD_WIDTH div 2}),
+    Board = create_board(?BOARD_WIDTH, ?BOARD_HEIGHT, ?BACKGROUND_COLOR),
+    T = generate_tetromino(zags, {1, 5}),
+    draw_board(Board, Win),
     draw_tetromino(T, Win),
     wait_for_input(T, Win).
+
+create_board(Width, Height, Color) ->
+    Arr = array:new(Height),
+    array:map(fun (_, _) -> array:map(fun (_, _) ->
+        {false, ?ceCOLOR_YELLOW} end, array:new(Width)) end, Arr).
+
+draw_board(Board, Win) -> 
+    array:map(fun (Row, Cells) -> array:map(fun (Col, {_, Color}) ->
+        draw_square({Row, Col * 2}, Win, Color) end, Cells) end, Board).
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %%% Piece Tuple Notation:
@@ -45,11 +85,6 @@ generate_tetromino(Type, {Row, Col}) ->
 % 
 % 
 rotate_tetromino(Direction, {Type, Rotation, {CenterRow, CenterCol}, _Cells}) ->
-    
-    % we only support rotating a T right now--we will add a case statement here 
-    % for each type of piece and potential call piece-specific rotate functions
-    
-
     % erlang does not support negative modding, so we add 4 here to always 
     % ensure that it's positive
     NewR = (Rotation + Direction + 4) rem 4,
@@ -91,8 +126,8 @@ get_rot(Type, Rotation) ->
 % draw tetromino
 draw_tetromino({Type, _Rotation, {CenterRow, CenterCol}, Cells}, Win) ->
     set_color(Type),
-    draw_tetris_square({CenterRow, CenterCol}, Win),
-    lists:foreach(fun ({R, C}) -> draw_tetris_square({R + CenterRow, C + CenterCol}, Win) end, Cells),
+    draw_tetris_square({CenterRow, CenterCol * 2}, Win),
+    lists:foreach(fun ({R, C}) -> draw_tetris_square({R + CenterRow, C * 2 + CenterCol * 2}, Win) end, Cells),
     cecho:refresh().
 
 % delete tetromino
@@ -100,9 +135,9 @@ draw_tetromino({Type, _Rotation, {CenterRow, CenterCol}, Cells}, Win) ->
 % Right now, the background is not set, so this makes it look like a 
 % gray trail is always following the piece
 delete_tetromino({_Type, _Rotation, {CenterRow, CenterCol}, Cells}, Win) ->
-    cecho:attron(?ceCOLOR_PAIR(234)), % gray
-    draw_square({CenterRow, CenterCol}, Win),
-    lists:foreach(fun ({R, C}) -> draw_square({R + CenterRow, C + CenterCol}, Win) end, Cells).
+    % cecho:attron(?ceCOLOR_PAIR(?BACKGROUND_COLOR)), % gray
+    draw_square({CenterRow, CenterCol * 2}, Win, ?BACKGROUND_COLOR),
+    lists:foreach(fun ({R, C}) -> draw_square({R + CenterRow, C * 2 + CenterCol * 2}, Win, ?BACKGROUND_COLOR) end, Cells).
 
 % set color for each piece before printing, based on piece type
 set_color(Type) ->
@@ -119,7 +154,8 @@ set_color(Type) ->
 draw_tetris_square({Row, Col}, {WinY, WinX}) ->
     cecho:mvaddstr(Row + WinY, Col + WinX, "[]"), ok.   
 
-draw_square({Row, Col}, {WinY, WinX}) ->
+draw_square({Row, Col}, {WinY, WinX}, Color) ->
+    cecho:attron(?ceCOLOR_PAIR(Color)),
     cecho:mvaddstr(Row + WinY, Col + WinX, "  ").
 
 move_left({Type, Rotation, {CenterRow, CenterCol}, Cells}) ->
@@ -220,4 +256,3 @@ wait_for_input(Tetromino, Win) ->
 % add_vert_line(Row, Col, Length) ->
 %     cecho:mvaddch(Row, Col, $|),
 %     add_vert_line(Row + 1, Col, Length - 1).
-    

@@ -1,6 +1,7 @@
 -module(tetris_io).
 
 -include_lib("../cecho/include/cecho.hrl").
+-include_lib("tetris.hrl").
 
 -export([init/0, stop/0, spawn_keyboard_proc/0, calc_game_win_coords/2]).
 
@@ -23,7 +24,7 @@ init() ->
     ok = cecho:init_pair(60, ?ceCOLOR_BLACK, 60), % GRAY
     ok = cecho:init_pair(203, ?ceCOLOR_BLACK, 203), % ORANGE
     ok = cecho:init_pair(92, ?ceCOLOR_BLACK, 92), % PURPLE
-    ok = cecho:init_pair(234, ?ceCOLOR_BLACK, 234), % BACKGROUND
+    ok = cecho:init_pair(?BACKGROUND_COLOR, ?ceCOLOR_BLACK, ?BACKGROUND_COLOR), % BACKGROUND
     ok = cecho:init_pair(39, ?ceCOLOR_BLACK, 39), % BACKGROUND
     {MaxRow, MaxCol} = cecho:getmaxyx(),
     cecho:move(10,10),
@@ -76,7 +77,7 @@ keyboard_loop(Client_Pid) ->
     % TODO: FILTER OUT UNIMPORTANT KEY INPUT
     Client_Pid ! {self(), key, Key},
     case Key of 
-        $q -> 
+        $q ->
             ok;
         _ -> 
             keyboard_loop(Client_Pid)
@@ -86,23 +87,19 @@ spawn_keyboard_proc() ->
     Client = self(),
     spawn_link(fun () -> keyboard_loop(Client) end).
 
-add_horiz_line_c(_, _, 0, ColorNum) -> ColorNum;
-add_horiz_line_c(Row, Col, Length, ColorNum) ->
-    cecho:init_pair(ColorNum, ?ceCOLOR_BLACK, ColorNum),
-    cecho:attron(?ceCOLOR_PAIR(ColorNum)),
-    cecho:mvaddch(Row, Col, $ ),
-    add_horiz_line_c(Row, Col + 1, Length - 1, ColorNum + 1).
+% add_horiz_line_c(_, _, 0, ColorNum) -> ColorNum;
+% add_horiz_line_c(Row, Col, Length, ColorNum) ->
+%     cecho:init_pair(ColorNum, ?ceCOLOR_BLACK, ColorNum),
+%     cecho:attron(?ceCOLOR_PAIR(ColorNum)),
+%     cecho:mvaddch(Row, Col, $ ),
+%     add_horiz_line_c(Row, Col + 1, Length - 1, ColorNum + 1).
 
+
+%%% calc_game_win_coords(Width, Height)
+%%% 
+%%% 
 calc_game_win_coords(Width, Height) ->
     {MaxRow, MaxCol} = cecho:getmaxyx(),
-    BeginX = (MaxCol - Width) div 2,
+    BeginX = (MaxCol - Width * 2) div 2,
     BeginY = (MaxRow - Height) div 2,
     {BeginY, BeginX}.
-
-recenter_game_win(Win, Width, Height) ->
-    {Y, X} = calc_game_win_coords(Width, Height),
-    cecho:mvwin(Win, Y, X).
-
-create_game_win(Width, Height) ->
-    {Y, X} = calc_game_win_coords(Width, Height),
-    cecho:newwin(Width, Height, Y, X).
