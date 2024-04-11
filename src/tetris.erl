@@ -37,20 +37,24 @@
 hello_world() -> 
     {_KeyPid, _MaxRow, _MaxCol} = tetris_io:init(),
     Win = tetris_io:calc_game_win_coords(?BOARD_WIDTH, ?BOARD_HEIGHT),
-    Board = create_board(?BOARD_WIDTH, ?BOARD_HEIGHT, ?BACKGROUND_COLOR),
-    T = generate_tetromino(zags, {1, 5}),
+    Board = board:create_board(?BOARD_WIDTH, ?BOARD_HEIGHT, ?BACKGROUND_COLOR),
+    T = generate_tetromino(t, {1, 5}),
     draw_board(Board, Win),
     draw_tetromino(T, Win),
     wait_for_input(T, Win).
 
-create_board(Width, Height, Color) ->
-    Arr = array:new(Height),
-    array:map(fun (_, _) -> array:map(fun (_, _) ->
-        {false, ?ceCOLOR_YELLOW} end, array:new(Width)) end, Arr).
-
 draw_board(Board, Win) -> 
-    array:map(fun (Row, Cells) -> array:map(fun (Col, {_, Color}) ->
-        draw_square({Row, Col * 2}, Win, Color) end, Cells) end, Board).
+    Rows = lists:enumerate(Board),
+    lists:map(fun ({Row, Cells}) ->
+                   array:map(fun (Col, {_, Color}) ->
+                                  draw_square({Row, Col * 2}, Win, Color) 
+                             end, Cells)
+              end, Rows).
+    % array:map(fun (Row, Cells) ->
+    %                array:map(fun (Col, {_, Color}) ->
+    %                               draw_square({Row, Col * 2}, Win, Color) 
+    %                          end, Cells)
+    %           end, Board).
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %%% Piece Tuple Notation:
@@ -139,6 +143,17 @@ delete_tetromino({_Type, _Rotation, {CenterRow, CenterCol}, Cells}, Win) ->
     draw_square({CenterRow, CenterCol * 2}, Win, ?BACKGROUND_COLOR),
     lists:foreach(fun ({R, C}) -> draw_square({R + CenterRow, C * 2 + CenterCol * 2}, Win, ?BACKGROUND_COLOR) end, Cells).
 
+% Take a tetromino and adjust its bounds to keep it in bounds, then return the new tetromino
+check_tetromino_bounds({Type, Rotation, Center, Cells}) ->
+    PredL = fun ({_Row, Col}) -> Col < 0 end,
+    PredR = fun ({_Row, Col}) -> Col > ?BOARD_WIDTH end,
+    Fun = case lists:map(fun (Pred) -> lists:any(Pred, [Center | Cells]) end, [PredL, PredR]) of
+        [true, _] -> fun (T) -> check_tetromino_bounds(move_right(T)) end;
+        [_, true] -> fun (T) -> check_tetromino_bounds(move_left(T)) end;
+        _ -> fun (T) -> T end
+    end,
+    Fun({Type, Rotation, Center, Cells}).
+
 % set color for each piece before printing, based on piece type
 set_color(Type) ->
     case Type of 
@@ -181,28 +196,38 @@ process_key(Key, Tetromino, Win) ->
         ?ceKEY_UP ->
             delete_tetromino(Tetromino, Win),
             NewT = rotate_tetromino(1, Tetromino),
-            draw_tetromino(NewT, Win),
+            NewT2 = check_tetromino_bounds(NewT),
+            % NewT2 = NewT,
+            draw_tetromino(NewT2, Win),
             {Win, NewT};
         ?ceKEY_LEFT ->
             delete_tetromino(Tetromino, Win),
             NewT = move_left(Tetromino),
             % NewT = check_bounds(NewT, Tetromino),
-            draw_tetromino(NewT, Win),
+            NewT2 = check_tetromino_bounds(NewT),
+            % NewT2 = NewT,
+            draw_tetromino(NewT2, Win),
             {Win, NewT};
         ?ceKEY_RIGHT ->
             delete_tetromino(Tetromino, Win),
             NewT = move_right(Tetromino),
-            draw_tetromino(NewT, Win),
+            NewT2 = check_tetromino_bounds(NewT),
+            % NewT2 = NewT,
+            draw_tetromino(NewT2, Win),
             {Win, NewT};
         ?ceKEY_DOWN ->
             delete_tetromino(Tetromino, Win),
             NewT = move_down(Tetromino),
-            draw_tetromino(NewT, Win),
+            NewT2 = check_tetromino_bounds(NewT),
+            % NewT2 = NewT,
+            draw_tetromino(NewT2, Win),
             {Win, NewT};
         $z -> 
             delete_tetromino(Tetromino, Win),
             NewT = rotate_tetromino(-1, Tetromino),
-            draw_tetromino(NewT, Win),
+            NewT2 = check_tetromino_bounds(NewT),
+            % NewT2 = NewT,
+            draw_tetromino(NewT2, Win),
             {Win, NewT};
         ?KEY_RESIZE ->
             delete_tetromino(Tetromino, Win),  % Delete old tetromino
