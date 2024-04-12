@@ -28,26 +28,26 @@
 %%% 
 %%% Next steps:
 %%%     1. Add getters for elements in the board data structure (maybe make a
-%%%         new module?)
+%%%         new module?) (DONE)
 %%%     2. Pass in board to delete_tetromino so we can get the correct 
-%%%         background color
-%%%     3. Add bounds checking for the board
+%%%         background color (DONE)
+%%%     3. Add bounds checking for the board (DONE)
 
 
 hello_world() -> 
     {_KeyPid, _MaxRow, _MaxCol} = tetris_io:init(),
     Win = tetris_io:calc_game_win_coords(?BOARD_WIDTH, ?BOARD_HEIGHT),
     Board = board:create_board(?BOARD_WIDTH, ?BOARD_HEIGHT, ?BACKGROUND_COLOR),
-    T = generate_tetromino(t, {1, 5}),
+    T = generate_tetromino(zigz, {1, 5}),
     draw_board(Board, Win),
     draw_tetromino(T, Win),
-    wait_for_input(T, Win).
+    wait_for_input(T, Win, Board).
 
 draw_board(Board, Win) -> 
     Rows = lists:enumerate(Board),
     lists:map(fun ({Row, Cells}) ->
                    array:map(fun (Col, {_, Color}) ->
-                                  draw_square({Row, Col * 2}, Win, Color) 
+                                  draw_square({Row - 1, Col * 2}, Win, Color) 
                              end, Cells)
               end, Rows).
     % array:map(fun (Row, Cells) ->
@@ -138,16 +138,19 @@ draw_tetromino({Type, _Rotation, {CenterRow, CenterCol}, Cells}, Win) ->
 % We have to remove a tetromino before redrawing it every time we make a move.
 % Right now, the background is not set, so this makes it look like a 
 % gray trail is always following the piece
-delete_tetromino({_Type, _Rotation, {CenterRow, CenterCol}, Cells}, Win) ->
+delete_tetromino({_Type, _Rotation, {CenterRow, CenterCol}, Cells}, Win, Board) ->
     % cecho:attron(?ceCOLOR_PAIR(?BACKGROUND_COLOR)), % gray
-    draw_square({CenterRow, CenterCol * 2}, Win, ?BACKGROUND_COLOR),
-    lists:foreach(fun ({R, C}) -> draw_square({R + CenterRow, C * 2 + CenterCol * 2}, Win, ?BACKGROUND_COLOR) end, Cells).
+    draw_square({CenterRow, CenterCol * 2}, Win, board:get_color(Board, CenterRow, CenterCol)),
+    lists:foreach(fun ({R, C}) -> 
+        draw_square({R + CenterRow, (C + CenterCol) * 2}, Win, board:get_color(Board, R + CenterRow, C + CenterCol)) end, Cells).
 
 % Take a tetromino and adjust its bounds to keep it in bounds, then return the new tetromino
-check_tetromino_bounds({Type, Rotation, Center, Cells}) ->
+check_tetromino_bounds({Type, Rotation, {CRow, CCol}, Cells}) ->
+    Center = {CRow, CCol},
+    WinCells = lists:map(fun ({Row, Col}) -> {CRow + Row, CCol + Col} end, Cells),
     PredL = fun ({_Row, Col}) -> Col < 0 end,
-    PredR = fun ({_Row, Col}) -> Col > ?BOARD_WIDTH end,
-    Fun = case lists:map(fun (Pred) -> lists:any(Pred, [Center | Cells]) end, [PredL, PredR]) of
+    PredR = fun ({_Row, Col}) -> Col > ?BOARD_WIDTH - 1 end,
+    Fun = case lists:map(fun (Pred) -> lists:any(Pred, [Center | WinCells]) end, [PredL, PredR]) of
         [true, _] -> fun (T) -> check_tetromino_bounds(move_right(T)) end;
         [_, true] -> fun (T) -> check_tetromino_bounds(move_left(T)) end;
         _ -> fun (T) -> T end
@@ -190,47 +193,46 @@ move_right({Type, Rotation, {CenterRow, CenterCol}, Cells}) ->
 move_tetromino({Row, Col}, {Type, Rotation, _Center, Cells}) ->
     {Type, Rotation, {Row, Col}, Cells}.
 
-process_key(Key, Tetromino, Win) -> 
+process_key(Key, Tetromino, Win, Board) -> 
     case Key of 
         % using q here instead of ?ceKEY_ESC because the latter seems to be slow
         ?ceKEY_UP ->
-            delete_tetromino(Tetromino, Win),
+            delete_tetromino(Tetromino, Win, Board),
             NewT = rotate_tetromino(1, Tetromino),
             NewT2 = check_tetromino_bounds(NewT),
             % NewT2 = NewT,
             draw_tetromino(NewT2, Win),
-            {Win, NewT};
+            {Win, NewT2};
         ?ceKEY_LEFT ->
-            delete_tetromino(Tetromino, Win),
+            delete_tetromino(Tetromino, Win, Board),
             NewT = move_left(Tetromino),
-            % NewT = check_bounds(NewT, Tetromino),
             NewT2 = check_tetromino_bounds(NewT),
             % NewT2 = NewT,
             draw_tetromino(NewT2, Win),
-            {Win, NewT};
+            {Win, NewT2};
         ?ceKEY_RIGHT ->
-            delete_tetromino(Tetromino, Win),
+            delete_tetromino(Tetromino, Win, Board),
             NewT = move_right(Tetromino),
             NewT2 = check_tetromino_bounds(NewT),
             % NewT2 = NewT,
             draw_tetromino(NewT2, Win),
-            {Win, NewT};
+            {Win, NewT2};
         ?ceKEY_DOWN ->
-            delete_tetromino(Tetromino, Win),
+            delete_tetromino(Tetromino, Win, Board),
             NewT = move_down(Tetromino),
             NewT2 = check_tetromino_bounds(NewT),
             % NewT2 = NewT,
             draw_tetromino(NewT2, Win),
-            {Win, NewT};
+            {Win, NewT2};
         $z -> 
-            delete_tetromino(Tetromino, Win),
+            delete_tetromino(Tetromino, Win, Board),
             NewT = rotate_tetromino(-1, Tetromino),
             NewT2 = check_tetromino_bounds(NewT),
             % NewT2 = NewT,
             draw_tetromino(NewT2, Win),
-            {Win, NewT};
+            {Win, NewT2};
         ?KEY_RESIZE ->
-            delete_tetromino(Tetromino, Win),  % Delete old tetromino
+            delete_tetromino(Tetromino, Win, Board),  % Delete old tetromino
             NewWin = tetris_io:calc_game_win_coords(?BOARD_WIDTH, ?BOARD_HEIGHT),
             draw_tetromino(Tetromino, NewWin),
             {NewWin, Tetromino};
@@ -238,14 +240,14 @@ process_key(Key, Tetromino, Win) ->
             {Win, Tetromino}
     end.
 
-wait_for_input(Tetromino, Win) ->
+wait_for_input(Tetromino, Win, Board) ->
     receive
         {_Pid, key, $q} -> 
             tetris_io:stop(),
             io:format("Thanks for playing!~n");
         {_Pid, key, Key} -> 
-            {NewWin, NewTetromino} = process_key(Key, Tetromino, Win),
-            wait_for_input(NewTetromino, NewWin);
+            {NewWin, NewTetromino} = process_key(Key, Tetromino, Win, Board),
+            wait_for_input(NewTetromino, NewWin, Board);
         Other ->
             io:format("Client Unexpected msg: ~p~n", [Other])
     end.
