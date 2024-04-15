@@ -85,7 +85,7 @@ draw_tetris_square({Row, Col}, {WinY, WinX}) ->
     cecho:mvaddstr(Row + WinY, Col + WinX, "[]"), ok.   
 
 draw_square({Row, Col}, {WinY, WinX}, Color) ->
-    cecho:attron(?ceCOLOR_PAIR(Color)),
+    set_color(Color),
     cecho:mvaddstr(Row + WinY, Col + WinX, "  ").
 
 %%% calc_game_win_coords(Width, Height)
@@ -132,7 +132,8 @@ set_color(Type) ->
         right -> Color = 4; % BLUE
         zigz -> Color = 1;
         zags -> Color = 2;
-        line -> Color = 39
+        line -> Color = 39;
+        bg   -> Color = ?BACKGROUND_COLOR  % Should this be ?BACKGROUND_COLOR
     end, cecho:attron(?ceCOLOR_PAIR(Color)).
 
 %%% pair_creation()

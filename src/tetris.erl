@@ -200,7 +200,7 @@ process_key(Key, Tetromino, Win, Board, TimerPid) ->
                 ?ceKEY_DOWN -> NewBoard = board:place_piece(Board, Tetromino),
                                TimerPid ! {self(), kill},
                                {NewTetromino, NewTimerPid} = generate_tetromino(self(), 1000, {1, 5}),
-                            %    tetris_io:delete_tetromino(Tetromino, Win, NewBoard),
+                               tetris_io:delete_tetromino(Tetromino, Win, NewBoard),
                                tetris_io:draw_tetromino(NewTetromino, ResultWin),
                                {Win, NewTetromino, NewBoard, NewTimerPid};
                 _ -> {ResultWin, Tetromino, Board, TimerPid}

@@ -41,7 +41,7 @@
 -define(BOARD_WIDTH, 10).
 -define(BOARD_HEIGHT, 20).
 
--define(BACKGROUND_COLOR, 234).
+-define(BACKGROUND_COLOR, ?ceCOLOR_CYAN).  % 234
 
 %%% old macros with width 2
 % -define(Rotation_T, [[{0, 2}, {1, 0}, {0, -2}], 

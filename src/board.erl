@@ -7,7 +7,7 @@
 
 create_board(Width, Height, _Color) ->
     List = list_of_arrays(Height, [], Width),
-    lists:map(fun (Arr) -> array:map(fun (_, _) -> {false, ?ceCOLOR_CYAN} end, Arr) end, List).
+    lists:map(fun (Arr) -> array:map(fun (_, _) -> {false, bg} end, Arr) end, List).
     
     % Arr = array:new(Height),
     % array:map(fun (_, _) ->
