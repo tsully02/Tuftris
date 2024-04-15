@@ -153,21 +153,26 @@ check_tetromino_collision({Type, Rotation, {CRow, CCol}, Cells}, Board) ->
     OnBottom = lists:any(BottomPred, TCoords),
     OnBottom orelse lists:any(fun ({Row, Col}) -> board:is_filled(Board, Row, Col) end, TCoords).
 
-clear_row(Tetromino, Board, Win) ->
+clear_row({Type, Rotation, Center, Cells}, Board, Win) ->
     % for each cell that was placed, check the row
-    Placed = get_tetromino_cell_coords(Tetromino),
+    Placed = get_tetromino_cell_coords({Type, Rotation, Center, Cells}),
+    Sorted = lists:sort(fun ({R1, _}, {R2, _}) -> R1 < R2 end, Placed),
+    % file:write_file("output.txt", io_lib:fwrite("piece ~p has been Sorted in cells ~p~n", [Type, Sorted]), [append]),
     lists:foldl(
         fun ({Row, _Col}, CurrBoard) ->
+            % io:format("Row, Col: ~p, ~p~n", [Row, Col]),
+            % file:write_file("output.txt", io_lib:fwrite("Row, Col: ~p, ~p~n", [Row, Col]), [append]),
             case lists:all(fun (CurrCol) -> board:is_filled(CurrBoard, Row, CurrCol) end, lists:seq(0, ?BOARD_WIDTH - 1))
             of
-                true -> NewBoard = board:remove_row(CurrBoard, Row),
+                true -> %file:write_file("output.txt", io_lib:fwrite("removing row ~p~n", [Row]), [append]),
+                        NewBoard = board:remove_row(CurrBoard, Row),
                         tetris_io:draw_board(NewBoard, Win),
                         NewBoard;
                 false -> CurrBoard
             end
         end,
         Board,
-        Placed).
+        Sorted).
 
 move_left({Type, Rotation, {CenterRow, CenterCol}, Cells}) ->
     move_tetromino({CenterRow, CenterCol - 1}, {Type, Rotation, {CenterRow, CenterCol}, Cells}).
