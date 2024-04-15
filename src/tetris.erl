@@ -133,7 +133,6 @@ get_tetromino_cell_coords({_Type, _Rotation, {CRow, CCol}, Cells}) ->
     WinCells = lists:map(fun ({Row, Col}) -> {CRow + Row, CCol + Col} end, Cells),
     [{CRow, CCol} | WinCells].
 
-
 % Take a tetromino and adjust its bounds to keep it in bounds, then return the new tetromino
 check_tetromino_bounds({Type, Rotation, {CRow, CCol}, Cells}) ->
     Tet = {Type, Rotation, {CRow, CCol}, Cells},
@@ -154,6 +153,21 @@ check_tetromino_collision({Type, Rotation, {CRow, CCol}, Cells}, Board) ->
     OnBottom = lists:any(BottomPred, TCoords),
     OnBottom orelse lists:any(fun ({Row, Col}) -> board:is_filled(Board, Row, Col) end, TCoords).
 
+clear_row(Tetromino, Board, Win) ->
+    % for each cell that was placed, check the row
+    Placed = get_tetromino_cell_coords(Tetromino),
+    lists:foldl(
+        fun ({Row, _Col}, CurrBoard) ->
+            case lists:all(fun (CurrCol) -> board:is_filled(CurrBoard, Row, CurrCol) end, lists:seq(0, ?BOARD_WIDTH - 1))
+            of
+                true -> NewBoard = board:remove_row(CurrBoard, Row),
+                        tetris_io:draw_board(NewBoard, Win),
+                        NewBoard;
+                false -> CurrBoard
+            end
+        end,
+        Board,
+        Placed).
 
 move_left({Type, Rotation, {CenterRow, CenterCol}, Cells}) ->
     move_tetromino({CenterRow, CenterCol - 1}, {Type, Rotation, {CenterRow, CenterCol}, Cells}).
@@ -172,19 +186,26 @@ move_right({Type, Rotation, {CenterRow, CenterCol}, Cells}) ->
 move_tetromino({Row, Col}, {Type, Rotation, _Center, Cells}) ->
     {Type, Rotation, {Row, Col}, Cells}.
 
+move_tetromino_to_lowest_position(Tetromino, Board) ->
+    DownTetromino = move_down(Tetromino),
+    case check_tetromino_collision(DownTetromino, Board) of
+        true -> Tetromino;
+        false -> move_tetromino_to_lowest_position(DownTetromino, Board)
+    end.
+
 process_key(Key, Tetromino, Win, Board, TimerPid) -> 
     {ResultWin, ResultTetromino} = case Key of 
         % using q here instead of ?ceKEY_ESC because the latter seems to be slow
         ?ceKEY_UP ->
             {Win, rotate_tetromino(1, Tetromino)};
         ?ceKEY_LEFT ->
-            % NewT2 = NewT,
             {Win, move_left(Tetromino)};
         ?ceKEY_RIGHT ->
-            % NewT2 = NewT,
             {Win, move_right(Tetromino)};
         ?ceKEY_DOWN ->
             {Win, move_down(Tetromino)};
+        32 ->
+            {Win, move_tetromino_to_lowest_position(Tetromino, Board)};
         $z -> 
             {Win, rotate_tetromino(-1, Tetromino)};
         ?KEY_RESIZE ->
@@ -199,10 +220,11 @@ process_key(Key, Tetromino, Win, Board, TimerPid) ->
             case Key of 
                 ?ceKEY_DOWN -> NewBoard = board:place_piece(Board, Tetromino),
                                TimerPid ! {self(), kill},
+                               NewNewBoard = clear_row(Tetromino, NewBoard, Win),
                                {NewTetromino, NewTimerPid} = generate_tetromino(self(), 1000, {1, 5}),
-                               tetris_io:delete_tetromino(Tetromino, Win, NewBoard),
+                               tetris_io:delete_tetromino(Tetromino, Win, NewNewBoard),
                                tetris_io:draw_tetromino(NewTetromino, ResultWin),
-                               {Win, NewTetromino, NewBoard, NewTimerPid};
+                               {Win, NewTetromino, NewNewBoard, NewTimerPid};
                 _ -> {ResultWin, Tetromino, Board, TimerPid}
             end;
         false ->  % Redraw new tetromino
