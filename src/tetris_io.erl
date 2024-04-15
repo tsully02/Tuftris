@@ -3,7 +3,7 @@
 -include_lib("../cecho/include/cecho.hrl").
 -include_lib("tetris.hrl").
 
--export([init/0, stop/0, spawn_keyboard_proc/0, calc_game_win_coords/2]).
+-export([init/0, stop/0, spawn_keyboard_proc/0, calc_game_win_coords/2, draw_board/2, draw_tetromino/2, delete_tetromino/3]).
 
 init() ->
     application:start(cecho),
@@ -11,21 +11,7 @@ init() ->
     ok = cecho:noecho(),
     ok = cecho:curs_set(?ceCURS_INVISIBLE),
     cecho:keypad(?ceSTDSCR, true),
-    ok = cecho:start_color(),
-    ok = cecho:init_pair(1, ?ceCOLOR_BLACK, ?ceCOLOR_RED),
-    ok = cecho:init_pair(2, ?ceCOLOR_BLACK, ?ceCOLOR_GREEN),
-    ok = cecho:init_pair(3, ?ceCOLOR_BLACK, ?ceCOLOR_YELLOW),
-    ok = cecho:init_pair(4, ?ceCOLOR_BLACK, ?ceCOLOR_BLUE),
-    ok = cecho:init_pair(5, ?ceCOLOR_BLACK, ?ceCOLOR_MAGENTA),
-    ok = cecho:init_pair(6, ?ceCOLOR_BLACK, ?ceCOLOR_CYAN),
-    ok = cecho:init_pair(7, ?ceCOLOR_BLACK, ?ceCOLOR_WHITE),
-    ok = cecho:init_pair(8, ?ceCOLOR_BLACK, ?ceCOLOR_BLACK),
-    ok = cecho:init_pair(9, ?ceCOLOR_BLACK, 9),
-    ok = cecho:init_pair(60, ?ceCOLOR_BLACK, 60), % GRAY
-    ok = cecho:init_pair(203, ?ceCOLOR_BLACK, 203), % ORANGE
-    ok = cecho:init_pair(92, ?ceCOLOR_BLACK, 92), % PURPLE
-    ok = cecho:init_pair(?BACKGROUND_COLOR, ?ceCOLOR_BLACK, ?BACKGROUND_COLOR), % BACKGROUND
-    ok = cecho:init_pair(39, ?ceCOLOR_BLACK, 39), % BACKGROUND
+    pair_creation(),
     {MaxRow, MaxCol} = cecho:getmaxyx(),
     cecho:move(10,10),
     % {EndVertRow, EndVertCol} = add_vert_line(45, 49, 10),
@@ -95,6 +81,13 @@ spawn_keyboard_proc() ->
 %     add_horiz_line_c(Row, Col + 1, Length - 1, ColorNum + 1).
 
 
+draw_tetris_square({Row, Col}, {WinY, WinX}) ->
+    cecho:mvaddstr(Row + WinY, Col + WinX, "[]"), ok.   
+
+draw_square({Row, Col}, {WinY, WinX}, Color) ->
+    cecho:attron(?ceCOLOR_PAIR(Color)),
+    cecho:mvaddstr(Row + WinY, Col + WinX, "  ").
+
 %%% calc_game_win_coords(Width, Height)
 %%% 
 %%% 
@@ -103,3 +96,60 @@ calc_game_win_coords(Width, Height) ->
     BeginX = (MaxCol - Width * 2) div 2,
     BeginY = (MaxRow - Height) div 2,
     {BeginY, BeginX}.
+
+draw_board(Board, Win) -> 
+    Rows = lists:enumerate(Board),
+    lists:map(fun ({Row, Cells}) ->
+                   array:map(fun (Col, {_, Color}) ->
+                                  draw_square({Row - 1, Col * 2}, Win, Color) 
+                             end, Cells)
+              end, Rows).
+
+% draw tetromino
+draw_tetromino({Type, _Rotation, {CenterRow, CenterCol}, Cells}, Win) ->
+    set_color(Type),
+    draw_tetris_square({CenterRow, CenterCol * 2}, Win),
+    lists:foreach(fun ({R, C}) -> draw_tetris_square({R + CenterRow, C * 2 + CenterCol * 2}, Win) end, Cells),
+    cecho:refresh().
+
+% delete tetromino
+% We have to remove a tetromino before redrawing it every time we make a move.
+% Right now, the background is not set, so this makes it look like a 
+% gray trail is always following the piece
+delete_tetromino({_Type, _Rotation, {CenterRow, CenterCol}, Cells}, Win, Board) ->
+    % cecho:attron(?ceCOLOR_PAIR(?BACKGROUND_COLOR)), % gray
+    draw_square({CenterRow, CenterCol * 2}, Win, board:get_color(Board, CenterRow, CenterCol)),
+    lists:foreach(fun ({R, C}) -> 
+        draw_square({R + CenterRow, (C + CenterCol) * 2}, Win, board:get_color(Board, R + CenterRow, C + CenterCol)) end, Cells).
+
+
+% set color for each piece before printing, based on piece type
+set_color(Type) ->
+    case Type of 
+        t -> Color = 92; % PURPLE
+        square -> Color = 3; % YELLOW
+        left -> Color = 203; % ORANGE
+        right -> Color = 4; % BLUE
+        zigz -> Color = 1;
+        zags -> Color = 2;
+        line -> Color = 39
+    end, cecho:attron(?ceCOLOR_PAIR(Color)).
+
+%%% pair_creation()
+%%% Generates color pairs that will be used throughout the proga
+pair_creation() ->
+    ok = cecho:start_color(),
+    ok = cecho:init_pair(1, ?ceCOLOR_BLACK, ?ceCOLOR_RED),
+    ok = cecho:init_pair(2, ?ceCOLOR_BLACK, ?ceCOLOR_GREEN),
+    ok = cecho:init_pair(3, ?ceCOLOR_BLACK, ?ceCOLOR_YELLOW),
+    ok = cecho:init_pair(4, ?ceCOLOR_BLACK, ?ceCOLOR_BLUE),
+    ok = cecho:init_pair(5, ?ceCOLOR_BLACK, ?ceCOLOR_MAGENTA),
+    ok = cecho:init_pair(6, ?ceCOLOR_BLACK, ?ceCOLOR_CYAN),
+    ok = cecho:init_pair(7, ?ceCOLOR_BLACK, ?ceCOLOR_WHITE),
+    ok = cecho:init_pair(8, ?ceCOLOR_BLACK, ?ceCOLOR_BLACK),
+    ok = cecho:init_pair(9, ?ceCOLOR_BLACK, 9),
+    ok = cecho:init_pair(60, ?ceCOLOR_BLACK, 60), % GRAY
+    ok = cecho:init_pair(203, ?ceCOLOR_BLACK, 203), % ORANGE
+    ok = cecho:init_pair(92, ?ceCOLOR_BLACK, 92), % PURPLE
+    ok = cecho:init_pair(?BACKGROUND_COLOR, ?ceCOLOR_BLACK, ?BACKGROUND_COLOR), % BACKGROUND
+    ok = cecho:init_pair(39, ?ceCOLOR_BLACK, 39). % BACKGROUND
