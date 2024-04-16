@@ -235,7 +235,7 @@ process_key(Key, Tetromino, Ghost, Win, Board, TimerPid) ->
     case check_tetromino_collision(NewT2, Board) of
         true ->  % Reject move, generate new tetromino if down
             case Key of 
-                ?ceKEY_DOWN -> NewBoard = board:place_piece(Board, Tetromino),
+                K when ((K == ?ceKEY_DOWN) or (K == 32)) -> NewBoard = board:place_piece(Board, Tetromino),
                                TimerPid ! {self(), kill},
                                NewNewBoard = clear_row(Tetromino, NewBoard, Win),
                                {NewTetromino, NewTimerPid} = generate_tetromino(self(), 1000, {1, 5}),
@@ -247,12 +247,18 @@ process_key(Key, Tetromino, Ghost, Win, Board, TimerPid) ->
                 _ -> {ResultWin, Tetromino, Ghost, Board, TimerPid}
             end;
         false ->  % Redraw new tetromino and ghost
-            ResultGhost = get_ghost(NewT2, Board),
-            tetris_io:delete_tetromino(Ghost, Win, Board),
-            tetris_io:draw_ghost(ResultGhost, Win, Board),
-            tetris_io:delete_tetromino(Tetromino, Win, Board),
-            tetris_io:draw_tetromino(NewT2, ResultWin),
-            {ResultWin, NewT2, ResultGhost, Board, TimerPid}
+            case Key of 
+                32 -> 
+                    tetris_io:delete_tetromino(Tetromino, Win, Board),
+                    process_key(?ceKEY_DOWN, NewT2, Ghost, Win, Board, TimerPid);
+                _ -> 
+                    ResultGhost = get_ghost(NewT2, Board),
+                    tetris_io:delete_tetromino(Ghost, Win, Board),
+                    tetris_io:draw_ghost(ResultGhost, Win, Board),
+                    tetris_io:delete_tetromino(Tetromino, Win, Board),
+                    tetris_io:draw_tetromino(NewT2, ResultWin),
+                    {ResultWin, NewT2, ResultGhost, Board, TimerPid}
+            end
     end.
 
 wait_for_input(Tetromino, Ghost, Win, Board, TimerPid) ->
