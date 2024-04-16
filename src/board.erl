@@ -42,7 +42,7 @@ get_row(Board, Row) ->
 %%% place_piece
 %%% Takes falling piece and places it in the board state
 place_piece(Board, Tetromino) ->
-    Piece = tetris:get_tetromino_cell_coords(Tetromino),
+    Piece = tetromino:get_all_coords(Tetromino),
     {Type, _Rot, _Center, _Cells} = Tetromino,
     lists:foldl(fun ({Row, Col}, BoardAcc) -> set_cell(BoardAcc, {true, Type}, Row, Col) end, Board, Piece).
 

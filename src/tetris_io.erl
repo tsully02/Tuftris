@@ -3,7 +3,7 @@
 -include_lib("../cecho/include/cecho.hrl").
 -include_lib("tetris.hrl").
 
--export([init/0, stop/0, spawn_keyboard_proc/0, calc_game_win_coords/2, draw_board/2, draw_tetromino/2, delete_tetromino/3, title_screen/1]).
+-export([init/0, stop/0, spawn_keyboard_proc/0, calc_game_win_coords/2, draw_board/2, draw_tetromino/2, delete_tetromino/3, title_screen/1, draw_ghost/3]).
 
 init() ->
     application:start(cecho),
@@ -112,6 +112,25 @@ draw_tetromino({Type, _Rotation, {CenterRow, CenterCol}, Cells}, Win) ->
     lists:foreach(fun ({R, C}) -> draw_tetris_square({R + CenterRow, C * 2 + CenterCol * 2}, Win) end, Cells),
     cecho:refresh().
 
+draw_ghost({Type, _Rotation, {CenterRow, CenterCol}, Cells}, Win, Board) ->
+    T = {Type, _Rotation, {CenterRow, CenterCol}, Cells},
+    Coords = tetromino:get_all_coords(T),
+    lists:foreach(fun ({R, C}) -> 
+                        set_color(board:get_color(Board, R, C)),
+                        draw_tetris_square({R, C * 2}, Win) end, Coords),
+    cecho:refresh().
+
+get_color(Type) ->
+    case Type of
+        t -> ?T_COLOR; % PURPLE
+        square -> ?SQUARE_COLOR; % YELLOW
+        left -> ?LEFT_COLOR; % ORANGE
+        right -> ?RIGHT_COLOR; % BLUE
+        zigz -> ?ZIGZ_COLOR;
+        zags -> ?ZAGS_COLOR;
+        line -> ?LINE_COLOR;
+        bg -> ?BACKGROUND_COLOR
+    end.
 % delete tetromino
 % We have to remove a tetromino before redrawing it every time we make a move.
 % Right now, the background is not set, so this makes it look like a 
@@ -125,23 +144,29 @@ delete_tetromino({_Type, _Rotation, {CenterRow, CenterCol}, Cells}, Win, Board) 
 
 % set color for each piece before printing, based on piece type
 set_color(Type) ->
-    case Type of 
-        t -> Color = 92; % PURPLE
-        square -> Color = 3; % YELLOW
-        left -> Color = 203; % ORANGE
-        right -> Color = 4; % BLUE
-        zigz -> Color = 1;
-        zags -> Color = 2;
-        line -> Color = 39;
-        bg   -> Color = ?BACKGROUND_COLOR;  % Should this be ?BACKGROUND_COLOR
-        scrbg -> Color = 11;
-        title -> Color = 7;
-        logo -> Color = 10
+    Color = case Type of 
+        t -> ?T_COLOR; % PURPLE
+        square -> ?SQUARE_COLOR; % YELLOW
+        left -> ?LEFT_COLOR; % ORANGE
+        right -> ?RIGHT_COLOR; % BLUE
+        zigz -> ?ZIGZ_COLOR;
+        zags -> ?ZAGS_COLOR;
+        line -> ?LINE_COLOR;
+        bg   -> ?BACKGROUND_COLOR;  % Should this be ?BACKGROUND_COLOR
+        scrbg -> 11;
+        title -> 7;
+        logo -> 10
     end, cecho:attron(?ceCOLOR_PAIR(Color)).
+
+
 
 %%% pair_creation()
 %%% Generates color pairs that will be used throughout the proga
 pair_creation() ->
+    % TColors = [?T_COLOR, ?SQUARE_COLOR, ?LEFT_COLOR, ?RIGHT_COLOR, ?ZIGZ_COLOR, 
+    %     ?ZAGS_COLOR, ?LINE_COLOR],
+    
+    % lists:foldl(fun (T, Acc) -> cecho:init_pair()
     ok = cecho:start_color(),
     ok = cecho:init_pair(1, ?ceCOLOR_BLACK, ?ceCOLOR_RED),
     ok = cecho:init_pair(2, ?ceCOLOR_BLACK, ?ceCOLOR_GREEN),

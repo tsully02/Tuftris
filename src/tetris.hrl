@@ -54,6 +54,14 @@
                      "    []       []    []   []             []       []  []         []             []",
                      "    []       [][][][]   []             []       []    []   [][][][][]   [][][][]"]).
 
+-define(T_COLOR, 92).
+-define(SQUARE_COLOR, 3).
+-define(LEFT_COLOR, 203).
+-define(RIGHT_COLOR, 4).
+-define(ZIGZ_COLOR, 1).
+-define(ZAGS_COLOR, 2).
+-define(LINE_COLOR, 39).
+
 %%% old macros with width 2
 % -define(Rotation_T, [[{0, 2}, {1, 0}, {0, -2}], 
 %                      [{1, 0}, {0, -2}, {-1, 0}], 
