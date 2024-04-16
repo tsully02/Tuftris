@@ -4,6 +4,7 @@
 -include_lib("tetris.hrl").
 
 -export([init/0, stop/0, spawn_keyboard_proc/0, calc_game_win_coords/2, draw_board/2, draw_tetromino/2, delete_tetromino/3, title_screen/1, draw_ghost/3]).
+-export([animate_clear_row/3]).
 
 init() ->
     application:start(cecho),
@@ -209,6 +210,21 @@ title_screen_keyboard_loop() ->
         {_Pid, key, _} -> title_screen_keyboard_loop()
     end.
 
+animate_clear_row(RowNum, Win, 10) ->
+    draw_square({RowNum, 18}, Win, bg),
+    cecho:refresh();
+animate_clear_row(RowNum, Win, 0) ->
+    draw_square({RowNum, 0}, Win, title),
+    cecho:refresh(),
+    timer:sleep(40),
+    animate_clear_row(RowNum, Win, 1);
+animate_clear_row(RowNum, Win, Curr) ->
+    draw_square({RowNum, (Curr - 1) * 2}, Win, bg),
+    draw_square({RowNum, Curr * 2}, Win, title),
+    cecho:refresh(),
+    timer:sleep(40),
+    animate_clear_row(RowNum, Win, Curr + 1).
+
 title_screen({WinY, WinX}) ->
     TitleWin = {WinY, WinX},
     clear_screen(title),
@@ -223,7 +239,7 @@ title_screen({WinY, WinX}) ->
     draw_centered_message(1, TitleWin, ?TITLESCR_WIDTH, ?TITLE_LOGO),
 
     set_color(title),
-    draw_centered_message(11, TitleWin, ?TITLESCR_WIDTH, ["Press:", " 1 to create room", "2 to join room", "q to quit"]),
+    draw_centered_message(11, TitleWin, ?TITLESCR_WIDTH, ["Press:", "1 Singleplayer", "2 Multiplayer", "q to quit"]),
     cecho:refresh(),
     Status = title_screen_keyboard_loop(),
     clear_screen(scrbg),

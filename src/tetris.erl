@@ -171,6 +171,7 @@ clear_row({Type, Rotation, Center, Cells}, Board, Win) ->
             case lists:all(fun (CurrCol) -> board:is_filled(CurrBoard, Row, CurrCol) end, lists:seq(0, ?BOARD_WIDTH - 1))
             of
                 true -> %file:write_file("output.txt", io_lib:fwrite("removing row ~p~n", [Row]), [append]),
+                        tetris_io:animate_clear_row(Row, Win, 0),
                         NewBoard = board:remove_row(CurrBoard, Row),
                         tetris_io:draw_board(NewBoard, Win),
                         NewBoard;
