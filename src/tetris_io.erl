@@ -3,7 +3,7 @@
 -include_lib("../cecho/include/cecho.hrl").
 -include_lib("tetris.hrl").
 
--export([init/0, stop/0, spawn_keyboard_proc/0, calc_game_win_coords/2, draw_board/2, draw_tetromino/2, delete_tetromino/3]).
+-export([init/0, stop/0, spawn_keyboard_proc/0, calc_game_win_coords/2, draw_board/2, draw_tetromino/2, delete_tetromino/3, title_screen/1]).
 
 init() ->
     application:start(cecho),
@@ -133,7 +133,10 @@ set_color(Type) ->
         zigz -> Color = 1;
         zags -> Color = 2;
         line -> Color = 39;
-        bg   -> Color = ?BACKGROUND_COLOR  % Should this be ?BACKGROUND_COLOR
+        bg   -> Color = ?BACKGROUND_COLOR;  % Should this be ?BACKGROUND_COLOR
+        scrbg -> Color = 11;
+        title -> Color = 7;
+        logo -> Color = 10
     end, cecho:attron(?ceCOLOR_PAIR(Color)).
 
 %%% pair_creation()
@@ -149,8 +152,56 @@ pair_creation() ->
     ok = cecho:init_pair(7, ?ceCOLOR_BLACK, ?ceCOLOR_WHITE),
     ok = cecho:init_pair(8, ?ceCOLOR_BLACK, ?ceCOLOR_BLACK),
     ok = cecho:init_pair(9, ?ceCOLOR_BLACK, 9),
+    ok = cecho:init_pair(10, ?ceCOLOR_MAGENTA, ?ceCOLOR_WHITE),
+    ok = cecho:init_pair(11, ?ceCOLOR_BLACK, ?SCREEN_BACKGROUND_COLOR),
     ok = cecho:init_pair(60, ?ceCOLOR_BLACK, 60), % GRAY
     ok = cecho:init_pair(203, ?ceCOLOR_BLACK, 203), % ORANGE
     ok = cecho:init_pair(92, ?ceCOLOR_BLACK, 92), % PURPLE
     ok = cecho:init_pair(?BACKGROUND_COLOR, ?ceCOLOR_BLACK, ?BACKGROUND_COLOR), % BACKGROUND
     ok = cecho:init_pair(39, ?ceCOLOR_BLACK, 39). % BACKGROUND
+
+
+clear_screen(ColorType) ->
+    {MaxRow, MaxCol} = cecho:getmaxyx(),
+    XCoords = lists:seq(0, MaxCol, 2),
+    YCoords = lists:seq(0, MaxRow),
+    XYCoords = [{X,Y} || X <- XCoords, Y <- YCoords],
+    lists:foreach(fun ({Col, Row}) -> draw_square({Row, Col}, {0, 0}, ColorType) end, XYCoords).
+
+
+draw_centered_message(_, _, _, []) ->
+    ok;
+draw_centered_message(Row, {WinY, WinX}, WinWidth, [Line | LineT]) ->
+    cecho:mvaddstr(Row + WinY, ((WinWidth * 2) - string:length(Line)) div 2 + WinX, Line),
+    draw_centered_message(Row + 1, {WinY, WinX}, WinWidth, LineT).
+
+
+title_screen_keyboard_loop() ->
+    receive
+        {_Pid, key, $1} -> start;
+        {_Pid, key, $2} -> start;
+        {_Pid, key, $q} -> quit;
+        {_Pid, key, _} -> title_screen_keyboard_loop()
+    end.
+
+title_screen({WinY, WinX}) ->
+    TitleWin = {WinY, WinX},
+    clear_screen(title),
+    % draw_logo(0, (?TITLESCR_WIDTH - ?LOGO_WIDTH), TitleWin),
+    set_color(logo),
+
+    cecho:mvaddstr(WinY, WinX, "+"),
+    cecho:mvaddstr(WinY + ?TITLESCR_HEIGHT, WinX, "+"),
+    cecho:mvaddstr(WinY, WinX + (?TITLESCR_WIDTH * 2), "+"),
+    cecho:mvaddstr(WinY + ?TITLESCR_HEIGHT, WinX + (?TITLESCR_WIDTH * 2), "+"),
+
+    draw_centered_message(1, TitleWin, ?TITLESCR_WIDTH, ?TITLE_LOGO),
+
+    set_color(title),
+    draw_centered_message(11, TitleWin, ?TITLESCR_WIDTH, ["Press:", " 1 to create room", "2 to join room", "q to quit"]),
+    cecho:refresh(),
+    Status = title_screen_keyboard_loop(),
+    clear_screen(scrbg),
+    cecho:refresh(),
+    Status.
+

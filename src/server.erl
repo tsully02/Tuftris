@@ -3,6 +3,8 @@
 -module(server).
 -behaviour(gen_server).
 
+-import(string,[equal/2]).
+
 %% Server administration
 -export([start_link/0, stop/0]).
 
@@ -10,7 +12,7 @@
 -export([init/1, handle_call/3, handle_cast/2, terminate/2]).
 
 % client functions
--export([join_room/3]).
+-export([join_room/3, create_room/4]).
 
 %%%===================================================================
 %%% Server Administration
@@ -32,10 +34,59 @@ stop() -> gen_server:stop(tetris).
 -spec init(list()) -> tuple().
 init(_Args) -> {ok, []}.
 
+%%%
+%%% State:
+%%% 
+%%% [{RoomName, {Pid, Node}, MaxPlayers, [{PlayerName, {Pid, Node}}]}]
+
 
 % manages the calls sent to the gen_server, generating replies
 -spec handle_call(term(), pid(), list()) -> ok.
-handle_call(_Request, _From, _State) -> ok.
+% handle_call(_Request, _From, _State) -> ok.
+
+%%% 
+%%% Player = {Name, {Pid, Node}}
+%%% 
+handle_call({newroom, RoomName, NumPlayers, Player}, _From, State) -> 
+    IsRoom = is_room(RoomName, State),
+    case IsRoom of 
+        true -> {reply, already_exists, State};
+        _ -> 
+            RoomInfo = {spawn(game, init, [RoomName, NumPlayers, Player]), node()},
+            io:format("Game Room Pid: ~p~n", [RoomInfo]),
+            Room = {RoomName, RoomInfo, NumPlayers, [Player]},
+            {reply, RoomInfo, [Room | State]}
+    end;
+handle_call({joinroom, RoomName, Player}, _From, State) -> 
+    Room = get_room(RoomName, State),
+    case Room of
+        false -> {reply, no_such_room, State};
+        _ -> 
+            {RoomName, RoomInfo, NumPlayers, PlayerList} = Room,
+            case length(PlayerList) of 
+                NumPlayers -> {reply, room_full, State};
+                _ -> 
+                    NewState = add_player(RoomName, Player, State),
+                    {reply, RoomInfo, NewState}
+            end
+    end. 
+            
+
+is_room(RoomName, State) ->
+    lists:any(fun ({Room, _, _, _}) -> equal(Room, RoomName) end, State).
+
+get_room(RoomName, State) ->
+    lists:keyfind(RoomName, 1, State).
+
+add_player(RoomName, Player, [{RoomName, RoomInfo, NumP, PlayerList} | T]) -> 
+    [{RoomName, RoomInfo, NumP, [Player | PlayerList]} | T];
+add_player(RoomName, Player, [H | T]) -> 
+    [H | add_player(RoomName, Player, T)].
+    
+
+
+
+
 
 
 % manages the casts sent to the gen_server, updating the state as necessary
@@ -62,10 +113,10 @@ handle_cast({unsubscribe, RoomName, User}, State) ->
 
 % terminates all the processes of the server
 -spec terminate(tuple(), list()) -> ok.
-terminate(_Reason, State) ->
-    lists:foreach(fun ({_, Users}) ->
-        lists:foreach(fun ({_, Pid}) -> Pid ! quitting end, Users) end,
-        State),
+terminate(_Reason, _State) ->
+    % lists:foreach(fun ({_, Users}) ->
+    %     lists:foreach(fun ({_, Pid}) -> Pid ! quitting end, Users) end,
+    %     State),
     ok.
 
 %%%===================================================================
@@ -74,14 +125,19 @@ terminate(_Reason, State) ->
 
 % adds the user to the given room running on the given server
 -spec join_room(atom(), string(), string()) -> ok.
-join_room(Node, RoomName, UserName) ->
+join_room(Node, RoomName, Name) ->
     Server = {tetris, Node},
-    Listener = spawn(fun () -> receive_messages(Server, RoomName) end),
-    gen_server:cast(Server, {subscribe, RoomName, {UserName, Listener}}),
-    send_messages(RoomName, Server),
-    gen_server:cast(Server, {unsubscribe, RoomName, {UserName, Listener}}),
-    Listener ! done,
-    ok.
+    Player = {Name, {self(), node()}},
+    {Pid, Node} = gen_server:call(Server, {joinroom, RoomName, {Name, {self(), node()}}}),
+    Pid ! {join_room, Player},
+    {Pid, Node}.
+
+    % Room = gen_server:call(Server, {newroom, RoomName, NumPlayers, {Name, {self(), node()}}}),
+
+create_room(Node, RoomName, Name, NumPlayers) -> 
+    Server = {tetris, Node},
+    gen_server:call(Server, {newroom, RoomName, NumPlayers, {Name, {self(), node()}}}).
+
 
 
 % loop for listener process to receive messages

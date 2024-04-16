@@ -41,7 +41,18 @@
 -define(BOARD_WIDTH, 10).
 -define(BOARD_HEIGHT, 20).
 
+-define(TITLESCR_WIDTH, 42).
+-define(TITLESCR_HEIGHT, 20).
+-define(LOGO_WIDTH, 40).
+
 -define(BACKGROUND_COLOR, ?ceCOLOR_CYAN).  % 234
+-define(SCREEN_BACKGROUND_COLOR, 234).  % 234
+
+-define(TITLE_LOGO, ["[][][][][]   []    []   [][][][]   [][][][][]   [][][][]   [][][][][]   [][][][]",
+                     "    []       []    []   []             []       []    []       []       []      ",
+                     "    []       []    []   [][][]         []       [][][][]       []       [][][][]",
+                     "    []       []    []   []             []       []  []         []             []",
+                     "    []       [][][][]   []             []       []    []   [][][][][]   [][][][]"]).
 
 %%% old macros with width 2
 % -define(Rotation_T, [[{0, 2}, {1, 0}, {0, -2}], 

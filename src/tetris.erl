@@ -3,7 +3,7 @@
 -include_lib("../cecho/include/cecho.hrl").
 -include_lib("tetris.hrl").
 
--export([hello_world/0, get_tetromino_cell_coords/1]).
+-export([initiate/0, get_tetromino_cell_coords/1]).
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %%% CHANGES THAT AMELIA AND TREVOR MADE:
@@ -43,8 +43,14 @@
 %%% 
 
 
-hello_world() -> 
+initiate() ->
     {_KeyPid, _MaxRow, _MaxCol} = tetris_io:init(),
+    Status = start_screen(),
+    tetris(Status).
+
+tetris(quit) ->
+    tetris_io:stop();
+tetris(start) ->
     Win = tetris_io:calc_game_win_coords(?BOARD_WIDTH, ?BOARD_HEIGHT),
     Board = board:create_board(?BOARD_WIDTH, ?BOARD_HEIGHT, ?BACKGROUND_COLOR),
     {T, TimerPid} = generate_tetromino(self(), 1000, {1, 5}),
@@ -296,3 +302,11 @@ timer(Pid, Time) ->
 % add_vert_line(Row, Col, Length) ->
 %     cecho:mvaddch(Row, Col, $|),
 %     add_vert_line(Row + 1, Col, Length - 1).
+
+
+
+
+start_screen() ->
+    TitleWin = tetris_io:calc_game_win_coords(?TITLESCR_WIDTH, ?TITLESCR_HEIGHT),
+    tetris_io:title_screen(TitleWin).
+
