@@ -239,7 +239,8 @@ process_key(Key, Tetromino, Ghost, Win, Board, TimerPid) ->
     case check_tetromino_collision(NewT2, Board) of
         true ->  % Reject move, generate new tetromino if down
             case Key of 
-                K when ((K == ?ceKEY_DOWN) or (K == 32)) -> NewBoard = board:place_piece(Board, Tetromino),
+                ?ceKEY_DOWN -> NewBoard = board:place_piece(Board, Tetromino),
+                               tetris_io:draw_board(NewBoard, Win),
                                TimerPid ! {self(), kill},
                                NewNewBoard = clear_row(Tetromino, NewBoard, Win),
                                {NewTetromino, NewTimerPid} = generate_tetromino(self(), 1000, {1, 5}),
