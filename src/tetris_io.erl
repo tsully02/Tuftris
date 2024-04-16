@@ -210,20 +210,26 @@ title_screen_keyboard_loop() ->
         {_Pid, key, _} -> title_screen_keyboard_loop()
     end.
 
-animate_clear_row(RowNum, Win, 10) ->
-    draw_square({RowNum, 18}, Win, bg),
+animate_clear_row([], _, _) ->
+    ok;
+animate_clear_row(RowNums, Win, 10) ->
+    lists:foreach(fun (R) -> 
+        draw_square({R, 18}, Win, bg) end, RowNums),
     cecho:refresh();
-animate_clear_row(RowNum, Win, 0) ->
-    draw_square({RowNum, 0}, Win, title),
+animate_clear_row(RowNums, Win, 0) ->
+    lists:foreach(fun (R) -> 
+        draw_square({R, 0}, Win, title) end, RowNums),
     cecho:refresh(),
     timer:sleep(40),
-    animate_clear_row(RowNum, Win, 1);
-animate_clear_row(RowNum, Win, Curr) ->
-    draw_square({RowNum, (Curr - 1) * 2}, Win, bg),
-    draw_square({RowNum, Curr * 2}, Win, title),
+    animate_clear_row(RowNums, Win, 1);
+animate_clear_row(RowNums, Win, Curr) ->
+    lists:foreach(fun (R) -> 
+        draw_square({R, (Curr - 1) * 2}, Win, bg) end, RowNums),
+    lists:foreach(fun (R) -> 
+        draw_square({R, Curr * 2}, Win, title) end, RowNums),
     cecho:refresh(),
     timer:sleep(40),
-    animate_clear_row(RowNum, Win, Curr + 1).
+    animate_clear_row(RowNums, Win, Curr + 1).
 
 title_screen({WinY, WinX}) ->
     TitleWin = {WinY, WinX},
