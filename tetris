@@ -1,0 +1,11 @@
+#! /bin/bash
+me=$(whoami)
+host=$(hostname)
+
+myname="${me}@${host}.eecs.tufts.edu"
+
+./tetris.escript $myname
+
+reset
+
+fortune | cowsay -f bud-frogs

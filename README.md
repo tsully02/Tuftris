@@ -18,3 +18,7 @@ Build
 -----
 
     $ rebar3 compile
+
+Run 
+-----
+    $ ./tetris

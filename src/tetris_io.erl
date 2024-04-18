@@ -205,7 +205,9 @@ draw_centered_message(Row, {WinY, WinX}, WinWidth, [Line | LineT]) ->
 title_screen_keyboard_loop() ->
     receive
         {_Pid, key, $1} -> start;
-        {_Pid, key, $2} -> server:create_room('tetris_server@vm-hw06.eecs.tufts.edu', "testroom", "amelia", 3),
+        {_Pid, key, $2} -> 
+            % io:format("messaging server...~n"),
+            server:create_room('server@vm-hw01.eecs.tufts.edu', "luffy2", "amelia", 1),
             start;
         {_Pid, key, $q} -> quit;
         {_Pid, key, _} -> title_screen_keyboard_loop()
@@ -252,4 +254,3 @@ title_screen({WinY, WinX}) ->
     clear_screen(scrbg),
     cecho:refresh(),
     Status.
-

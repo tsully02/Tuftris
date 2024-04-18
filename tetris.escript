@@ -1,9 +1,9 @@
 #!/usr/bin/env escript
-%%! -noinput -pa _build/default/lib/cecho/ebin _build/default/lib/tetris/ebin +A 50
+%%! -noinput -setcookie monster -pa _build/default/lib/cecho/ebin _build/default/lib/tetris/ebin +A 50
 -include_lib("cecho/include/cecho.hrl").
-main(_) -> net_kernel:start(['client@vm-hw06.eecs.tufts.edu', longnames]),
-           erlang:set_cookie('monster'),
-    
-    % io:format("~p~n", [node()]).
-    tetris:initiate().
-
+main([ClientLongName]) -> 
+    net_kernel:start([list_to_atom(ClientLongName), longnames]),    
+            % io:format("~p~n", [node()]).
+            tetris:initiate();
+main(_) ->
+    io:format("Usage: ./tetris.escript <longname>~n").
