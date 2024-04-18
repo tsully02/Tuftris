@@ -121,17 +121,17 @@ draw_ghost({Type, _Rotation, {CenterRow, CenterCol}, Cells}, Win, Board) ->
                         draw_tetris_square({R, C * 2}, Win) end, Coords),
     cecho:refresh().
 
-get_color(Type) ->
-    case Type of
-        t -> ?T_COLOR; % PURPLE
-        square -> ?SQUARE_COLOR; % YELLOW
-        left -> ?LEFT_COLOR; % ORANGE
-        right -> ?RIGHT_COLOR; % BLUE
-        zigz -> ?ZIGZ_COLOR;
-        zags -> ?ZAGS_COLOR;
-        line -> ?LINE_COLOR;
-        bg -> ?BACKGROUND_COLOR
-    end.
+% get_color(Type) ->
+%     case Type of
+%         t -> ?T_COLOR; % PURPLE
+%         square -> ?SQUARE_COLOR; % YELLOW
+%         left -> ?LEFT_COLOR; % ORANGE
+%         right -> ?RIGHT_COLOR; % BLUE
+%         zigz -> ?ZIGZ_COLOR;
+%         zags -> ?ZAGS_COLOR;
+%         line -> ?LINE_COLOR;
+%         bg -> ?BACKGROUND_COLOR
+%     end.
 % delete tetromino
 % We have to remove a tetromino before redrawing it every time we make a move.
 % Right now, the background is not set, so this makes it look like a 
@@ -205,7 +205,8 @@ draw_centered_message(Row, {WinY, WinX}, WinWidth, [Line | LineT]) ->
 title_screen_keyboard_loop() ->
     receive
         {_Pid, key, $1} -> start;
-        {_Pid, key, $2} -> start;
+        {_Pid, key, $2} -> server:create_room('tetris_server@vm-hw06.eecs.tufts.edu', "testroom", "amelia", 3),
+            start;
         {_Pid, key, $q} -> quit;
         {_Pid, key, _} -> title_screen_keyboard_loop()
     end.

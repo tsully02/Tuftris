@@ -238,18 +238,24 @@ process_key(Key, Tetromino, Ghost, Win, Board, TimerPid) ->
     NewT2 = check_tetromino_bounds(ResultTetromino),
     case check_tetromino_collision(NewT2, Board) of
         true ->  % Reject move, generate new tetromino if down
-            case Key of 
-                ?ceKEY_DOWN -> NewBoard = board:place_piece(Board, Tetromino),
-                               tetris_io:draw_board(NewBoard, Win),
-                               TimerPid ! {self(), kill},
-                               NewNewBoard = clear_row(Tetromino, NewBoard, Win),
-                               {NewTetromino, NewTimerPid} = generate_tetromino(self(), 1000, {1, 5}),
-                               NewGhost = get_ghost(NewTetromino, NewNewBoard),
-                               tetris_io:draw_ghost(NewGhost, Win, NewNewBoard),
-                               tetris_io:delete_tetromino(Tetromino, Win, NewNewBoard),
-                               tetris_io:draw_tetromino(NewTetromino, ResultWin),
-                               {Win, NewTetromino, NewGhost, NewNewBoard, NewTimerPid};
-                _ -> {ResultWin, Tetromino, Ghost, Board, TimerPid}
+            {_Type, _Rotation, Center, _Cells} = Tetromino,
+            {Row, _Col} = Center,
+            case Row of
+                1 -> blockedOut();
+                _ -> 
+                    case Key of 
+                        ?ceKEY_DOWN -> NewBoard = board:place_piece(Board, Tetromino),
+                            tetris_io:draw_board(NewBoard, Win),
+                            TimerPid ! {self(), kill},
+                            NewNewBoard = clear_row(Tetromino, NewBoard, Win),
+                            {NewTetromino, NewTimerPid} = generate_tetromino(self(), 1000, {1, 5}),
+                            NewGhost = get_ghost(NewTetromino, NewNewBoard),
+                            tetris_io:draw_ghost(NewGhost, Win, NewNewBoard),
+                            tetris_io:delete_tetromino(Tetromino, Win, NewNewBoard),
+                            tetris_io:draw_tetromino(NewTetromino, ResultWin),
+                            {Win, NewTetromino, NewGhost, NewNewBoard, NewTimerPid};
+                        _ -> {ResultWin, Tetromino, Ghost, Board, TimerPid}
+                    end
             end;
         false ->  % Redraw new tetromino and ghost
             case Key of 
@@ -269,15 +275,26 @@ process_key(Key, Tetromino, Ghost, Win, Board, TimerPid) ->
 wait_for_input(Tetromino, Ghost, Win, Board, TimerPid) ->
     % io:format("Timer: ~p~n", [TimerPid]),
     receive
+        % {TimerPid, timer} ->
+        %     {NewWin, NewTetromino, NewGhost, NewBoard, NewTimerPid} = process_key(?ceKEY_DOWN, Tetromino, Ghost, Win, Board, TimerPid),
+        %     wait_for_input(NewTetromino, NewGhost, NewWin, NewBoard, NewTimerPid);
         {TimerPid, timer} ->
-            {NewWin, NewTetromino, NewGhost, NewBoard, NewTimerPid} = process_key(?ceKEY_DOWN, Tetromino, Ghost, Win, Board, TimerPid),
-            wait_for_input(NewTetromino, NewGhost, NewWin, NewBoard, NewTimerPid);
+            case process_key(?ceKEY_DOWN, Tetromino, Ghost, Win, Board, TimerPid) of
+                blocked -> ok;
+                {NewWin, NewTetromino, NewGhost, NewBoard, NewTimerPid} ->
+                           wait_for_input(NewTetromino, NewGhost, NewWin, NewBoard, NewTimerPid)
+            end;
         {_Pid, key, $q} -> 
             tetris_io:stop(),
             io:format("Thanks for playing!~n");
-        {_Pid, key, Key} -> 
-            {NewWin, NewTetromino, NewGhost, NewBoard, NewTimerPid} = process_key(Key, Tetromino, Ghost, Win, Board, TimerPid),
-            wait_for_input(NewTetromino, NewGhost, NewWin, NewBoard, NewTimerPid);
+        {_Pid, key, Key} ->
+            case process_key(Key, Tetromino, Ghost, Win, Board, TimerPid) of
+                blocked -> ok;
+                {NewWin, NewTetromino, NewGhost, NewBoard, NewTimerPid} ->
+                    wait_for_input(NewTetromino, NewGhost, NewWin, NewBoard, NewTimerPid)
+            end;
+            % {NewWin, NewTetromino, NewGhost, NewBoard, NewTimerPid} = process_key(Key, Tetromino, Ghost, Win, Board, TimerPid),
+            % wait_for_input(NewTetromino, NewGhost, NewWin, NewBoard, NewTimerPid);
         Other ->
             io:format("Client Unexpected msg: ~p~n", [Other])
     end.
@@ -291,6 +308,10 @@ timer(Pid, Time) ->
              Pid ! {self(), timer},
              timer(Pid, Time)
     end.
+
+% Implement BlockedOut behavior
+blockedOut() ->
+    blocked.
     
 
 % add_horiz_line_c(_, _, 0, ColorNum) -> ColorNum;
