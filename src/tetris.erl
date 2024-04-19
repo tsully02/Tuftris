@@ -283,6 +283,10 @@ wait_for_input(Tetromino, Ghost, Win, Board, TimerPid, GameRoom) ->
             GameRoom ! stop,
             tetris_io:stop(),
             io:format("Thanks for playing!~n");
+        {_Pid, key, $l} -> 
+            TimerPid ! kill,
+            {NewTetromino, NewTimerPid} = tetromino:generate(self(), 1000, {1, 5}, line),
+            wait_for_input(NewTetromino, Ghost, Win, Board, NewTimerPid, GameRoom);
         {_Pid, key, Key} ->
             case process_key(Key, Tetromino, Ghost, Win, Board, TimerPid, GameRoom) of
                 blocked -> 
@@ -304,6 +308,8 @@ wait_for_input(Tetromino, Ghost, Win, Board, TimerPid, GameRoom) ->
             % send message to pid that controls other player's boards???
             wait_for_input(Tetromino, Ghost, Win, Board, TimerPid, GameRoom);
         {placepiece, _PInfo, _T} ->
+            wait_for_input(Tetromino, Ghost, Win, Board, TimerPid, GameRoom);
+        {_Pid, timer} ->
             wait_for_input(Tetromino, Ghost, Win, Board, TimerPid, GameRoom);
         Other ->
             io:format("Client Unexpected msg: ~p~n", [Other])

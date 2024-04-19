@@ -16,6 +16,11 @@ get_all_coords({_Type, _Rotation, {CRow, CCol}, Cells}) ->
 %%% TODO: Make less random :)
 %%% 
 %%% the double code this is temporary i swear...
+generate(Pid, Time, {Row, Col}, line) ->
+    TimerPid = spawn(fun () -> tetris:timer(Pid, Time) end),
+    % io:format("Timer: ~p~n", [TimerPid]),
+    T = {line, 0, {Row, Col}, get_rot(line, 0)},
+    {T, TimerPid};
 generate(Pid, Time, {Row, Col}, Pid) ->
     Tetrominos = [t, line, zigz, zags, square, left, right],
     % random:seed(erlang:now()),
