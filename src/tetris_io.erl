@@ -3,8 +3,8 @@
 -include_lib("../cecho/include/cecho.hrl").
 -include_lib("tetris.hrl").
 
--export([init/0, stop/0, spawn_keyboard_proc/0, calc_game_win_coords/2, draw_board/2, draw_tetromino/2, delete_tetromino/3, title_screen/1, draw_ghost/3]).
--export([animate_clear_row/3]).
+-export([init/0, stop/0, spawn_keyboard_proc/0, calc_game_win_coords/2, draw_board/2, draw_tetromino/2, delete_tetromino/3, draw_title_screen/2, draw_ghost/3, text_box/3]).
+-export([animate_clear_row/3, paint_screen/1]).
 
 init() ->
     application:start(cecho),
@@ -20,19 +20,6 @@ init() ->
     % add_check_horiz_line(EndVertRow, EndVertCol + 1, 10),
     cecho:attron(?ceCOLOR_PAIR(2)),
         % timer:sleep(1000),
-    % delete_tetromino(T),
-    % T2 = rotate_tetromino_clock(T),
-    % draw_tetromino(T2),
-    % cecho:refresh(),
-    % io:format("~p~n", [T]),
-    % io:format("~p~n", [T2]),
-    % % draw_t(50, 50),
-    % timer:sleep(1000),
-
-    % delete_tetromino(T2),
-    % T3 = rotate_tetromino_clock(T2),
-    % draw_tetromino(T3),
-    % cecho:refresh(),
 
     %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
     % keep this
@@ -64,8 +51,8 @@ keyboard_loop(Client_Pid) ->
     % TODO: FILTER OUT UNIMPORTANT KEY INPUT
     Client_Pid ! {self(), key, Key},
     case Key of 
-        $q ->
-            ok;
+        % $q ->
+        %     ok;
         _ -> 
             keyboard_loop(Client_Pid)
     end. 
@@ -74,18 +61,10 @@ spawn_keyboard_proc() ->
     Client = self(),
     spawn_link(fun () -> keyboard_loop(Client) end).
 
-% add_horiz_line_c(_, _, 0, ColorNum) -> ColorNum;
-% add_horiz_line_c(Row, Col, Length, ColorNum) ->
-%     cecho:init_pair(ColorNum, ?ceCOLOR_BLACK, ColorNum),
-%     cecho:attron(?ceCOLOR_PAIR(ColorNum)),
-%     cecho:mvaddch(Row, Col, $ ),
-%     add_horiz_line_c(Row, Col + 1, Length - 1, ColorNum + 1).
-
-
-draw_tetris_square({Row, Col}, {WinY, WinX}) ->
+draw_tetris_square({Row, Col}, {WinY, WinX, _, _}) ->
     cecho:mvaddstr(Row + WinY, Col + WinX, "[]"), ok.   
 
-draw_square({Row, Col}, {WinY, WinX}, Color) ->
+draw_square({Row, Col}, {WinY, WinX, _, _}, Color) ->
     set_color(Color),
     cecho:mvaddstr(Row + WinY, Col + WinX, "  ").
 
@@ -96,7 +75,7 @@ calc_game_win_coords(Width, Height) ->
     {MaxRow, MaxCol} = cecho:getmaxyx(),
     BeginX = (MaxCol - Width * 2) div 2,
     BeginY = (MaxRow - Height) div 2,
-    {BeginY, BeginX}.
+    {BeginY, BeginX, Width, Height}.
 
 draw_board(Board, Win) -> 
     Rows = lists:enumerate(Board),
@@ -179,7 +158,7 @@ pair_creation() ->
     ok = cecho:init_pair(8, ?ceCOLOR_BLACK, ?ceCOLOR_BLACK),
     ok = cecho:init_pair(9, ?ceCOLOR_BLACK, 9),
     ok = cecho:init_pair(10, ?ceCOLOR_MAGENTA, ?ceCOLOR_WHITE),
-    ok = cecho:init_pair(11, ?ceCOLOR_BLACK, ?SCREEN_BACKGROUND_COLOR),
+    ok = cecho:init_pair(11, ?ceCOLOR_BLACK, ?SCREEN_BGD_COLOR),
     ok = cecho:init_pair(60, ?ceCOLOR_BLACK, 60), % GRAY
     ok = cecho:init_pair(203, ?ceCOLOR_BLACK, 203), % ORANGE
     ok = cecho:init_pair(92, ?ceCOLOR_BLACK, 92), % PURPLE
@@ -187,31 +166,20 @@ pair_creation() ->
     ok = cecho:init_pair(39, ?ceCOLOR_BLACK, 39). % BACKGROUND
 
 
-clear_screen(ColorType) ->
+paint_screen(ColorType) ->
     {MaxRow, MaxCol} = cecho:getmaxyx(),
     XCoords = lists:seq(0, MaxCol, 2),
     YCoords = lists:seq(0, MaxRow),
     XYCoords = [{X,Y} || X <- XCoords, Y <- YCoords],
-    lists:foreach(fun ({Col, Row}) -> draw_square({Row, Col}, {0, 0}, ColorType) end, XYCoords).
+    lists:foreach(fun ({Col, Row}) -> draw_square({Row, Col}, {0, 0, MaxCol, MaxRow}, ColorType) end, XYCoords),
+    cecho:refresh().
 
 
-draw_centered_message(_, _, _, []) ->
+draw_centered_message(_, _, []) ->
     ok;
-draw_centered_message(Row, {WinY, WinX}, WinWidth, [Line | LineT]) ->
+draw_centered_message(Row, {WinY, WinX, WinWidth, WinHeight}, [Line | LineT]) ->
     cecho:mvaddstr(Row + WinY, ((WinWidth * 2) - string:length(Line)) div 2 + WinX, Line),
-    draw_centered_message(Row + 1, {WinY, WinX}, WinWidth, LineT).
-
-
-title_screen_keyboard_loop() ->
-    receive
-        {_Pid, key, $1} -> start;
-        {_Pid, key, $2} -> 
-            % io:format("messaging server...~n"),
-            server:create_room('server@vm-hw01.eecs.tufts.edu', "luffy2", "amelia", 1),
-            start;
-        {_Pid, key, $q} -> quit;
-        {_Pid, key, _} -> title_screen_keyboard_loop()
-    end.
+    draw_centered_message(Row + 1, {WinY, WinX, WinWidth, WinHeight}, LineT).
 
 animate_clear_row([], _, _) ->
     ok;
@@ -234,23 +202,73 @@ animate_clear_row(RowNums, Win, Curr) ->
     timer:sleep(40),
     animate_clear_row(RowNums, Win, Curr + 1).
 
-title_screen({WinY, WinX}) ->
-    TitleWin = {WinY, WinX},
-    clear_screen(title),
+draw_title_screen({WinY, WinX, Width, Height}, CenteredMessage) ->
+    TitleWin = {WinY, WinX, Width, Height},
+    paint_screen(title),
     % draw_logo(0, (?TITLESCR_WIDTH - ?LOGO_WIDTH), TitleWin),
     set_color(logo),
 
     cecho:mvaddstr(WinY, WinX, "+"),
-    cecho:mvaddstr(WinY + ?TITLESCR_HEIGHT, WinX, "+"),
-    cecho:mvaddstr(WinY, WinX + (?TITLESCR_WIDTH * 2), "+"),
-    cecho:mvaddstr(WinY + ?TITLESCR_HEIGHT, WinX + (?TITLESCR_WIDTH * 2), "+"),
+    cecho:mvaddstr(WinY + Height, WinX, "+"),
+    cecho:mvaddstr(WinY, WinX + (Width * 2), "+"),
+    cecho:mvaddstr(WinY + Height, WinX + (Width * 2), "+"),
 
-    draw_centered_message(1, TitleWin, ?TITLESCR_WIDTH, ?TITLE_LOGO),
+    draw_centered_message(1, TitleWin, ?TITLE_LOGO),
 
     set_color(title),
-    draw_centered_message(11, TitleWin, ?TITLESCR_WIDTH, ["Press:", "1 Singleplayer", "2 Multiplayer", "q to quit"]),
+    draw_centered_message(11, TitleWin, CenteredMessage),
+    cecho:refresh().
+
+get_text_box_input([], Width) ->
+    receive
+        {_Pid, key, $\n} -> "";
+        {_Pid, key, ?ceKEY_BACKSPACE} ->  {Y, X} = cecho:getyx(),
+                                          cecho:move(Y, X + 1),
+                                          cecho:refresh(),
+                                          get_text_box_input([], Width);
+        {_Pid, key, Key} -> cecho:refresh(),
+                            get_text_box_input([Key], Width)
+    end;
+get_text_box_input([PrevChar | PrevInput], Width) ->
+    receive
+        {_Pid, key, $\n} -> lists:reverse([PrevChar | PrevInput]);
+        {_Pid, key, ?ceKEY_BACKSPACE} when length(PrevInput) == (Width * 2) - 1 -> {Y, X} = cecho:getyx(),
+                                         cecho:move(Y, X + 1),
+                                         cecho:addch(32),
+                                         cecho:move(Y, X + 1),
+                                         cecho:refresh(),
+                                         get_text_box_input(PrevInput, Width);
+        {_Pid, key, ?ceKEY_BACKSPACE} -> {Y, X} = cecho:getyx(),
+                                         cecho:addch(32),
+                                         cecho:move(Y, X),
+                                         cecho:refresh(),
+                                         get_text_box_input(PrevInput, Width);
+        {_Pid, key, Key} when length(PrevInput) < (Width * 2) - 2 -> cecho:refresh(),
+                                                                     get_text_box_input([Key | [PrevChar | PrevInput]], Width);
+        {_Pid, key, Key} when length(PrevInput) == (Width * 2) - 2 -> {Y, X} = cecho:getyx(),
+                            cecho:move(Y, X - 1),
+                            cecho:refresh(),
+                            get_text_box_input([Key | [PrevChar | PrevInput]], Width);
+        {_Pid, key, Key} -> {Y, X} = cecho:getyx(),
+                            cecho:move(Y, X - 1),
+                            cecho:refresh(),
+                            get_text_box_input([Key | PrevInput], Width)
+    end.
+
+generate_box(Width) ->
+    Line = lists:concat(["+", lists:duplicate(Width * 2, $-), "+"]),
+    CenterRow = lists:concat(["|", lists:duplicate(Width * 2, 32), "|"]),
+    [Line, CenterRow, Line].
+
+% Draw a text box where the typing location is at Row and of Width (2-col units), then return what the user typed
+text_box({WinY, WinX, WinWidth, WinHeight}, Width, Row) ->
+    Win = {WinY, WinX, WinWidth, WinHeight},
+    draw_centered_message(Row - 1, Win, generate_box(Width)),
+    ok = cecho:curs_set(?ceCURS_NORMAL),
+    ok = cecho:echo(),
+    cecho:move(WinY + Row, WinX + ((WinWidth - Width))),
     cecho:refresh(),
-    Status = title_screen_keyboard_loop(),
-    clear_screen(scrbg),
-    cecho:refresh(),
-    Status.
+    Input = get_text_box_input([], Width),
+    ok = cecho:curs_set(?ceCURS_INVISIBLE),
+    ok = cecho:noecho(),
+    Input.

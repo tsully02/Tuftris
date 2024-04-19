@@ -4,8 +4,8 @@ host=$(hostname)
 
 myname="${me}@${host}.eecs.tufts.edu"
 
-./tetris.escript $myname
+./tetris.escript $myname $me
 
-reset
+# reset
 
-fortune | cowsay -f bud-frogs
+# fortune | cowsay -f bud-frogs

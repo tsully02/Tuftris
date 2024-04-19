@@ -1,11 +1,11 @@
 -module(board).
 
--include_lib("../cecho/include/cecho.hrl").
+% -include_lib("../cecho/include/cecho.hrl").
 -include_lib("tetris.hrl").
 
--export([create_board/3, get_color/3, is_filled/3, place_piece/2, remove_row/2, get_row/2]).
+-export([create/3, get_color/3, is_filled/3, place_piece/2, remove_row/2, get_row/2]).
 
-create_board(Width, Height, _Color) ->
+create(Width, Height, _Color) ->
     List = list_of_arrays(Height, [], Width),
     lists:map(fun (Arr) -> array:map(fun (_, _) -> {false, bg} end, Arr) end, List).
 

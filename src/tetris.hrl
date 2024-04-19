@@ -46,7 +46,7 @@
 -define(LOGO_WIDTH, 40).
 
 -define(BACKGROUND_COLOR, ?ceCOLOR_CYAN).  % 234
--define(SCREEN_BACKGROUND_COLOR, 234).  % 234
+-define(SCREEN_BGD_COLOR, 234).  % 234
 
 -define(TITLE_LOGO, ["[][][][][]   []    []   [][][][]   [][][][][]   [][][][]   [][][][][]   [][][][]",
                      "    []       []    []   []             []       []    []       []       []      ",

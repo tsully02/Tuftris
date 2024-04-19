@@ -42,7 +42,6 @@ init(_Args) -> {ok, []}.
 
 % manages the calls sent to the gen_server, generating replies
 -spec handle_call(term(), pid(), list()) -> ok.
-% handle_call(_Request, _From, _State) -> ok.
 
 %%% 
 %%% Player = {Name, {Pid, Node}}
@@ -52,10 +51,10 @@ handle_call({newroom, RoomName, NumPlayers, Player}, _From, State) ->
     case IsRoom of 
         true -> {reply, already_exists, State};
         _ -> 
-            RoomInfo = {spawn(game, init, [RoomName, NumPlayers, Player]), node()},
-            io:format("Game Room Pid: ~p~n", [RoomInfo]),
-            Room = {RoomName, RoomInfo, NumPlayers, [Player]},
-            {reply, RoomInfo, [Room | State]}
+            RoomPid = spawn(game, init, [RoomName, NumPlayers, Player]),
+            io:format("Game Room Pid: ~p~n", [RoomPid]),
+            Room = {RoomName, RoomPid, NumPlayers, [Player]},
+            {reply, RoomPid, [Room | State]}
     end;
 handle_call({joinroom, RoomName, Player}, _From, State) -> 
     Room = get_room(RoomName, State),
@@ -84,31 +83,26 @@ add_player(RoomName, Player, [H | T]) ->
     [H | add_player(RoomName, Player, T)].
     
 
-
-
-
-
-
 % manages the casts sent to the gen_server, updating the state as necessary
 -spec handle_cast(tuple() | atom(), list()) -> tuple().
 handle_cast(stop, State) ->
-    {stop, normal, State};
-handle_cast({subscribe, RoomName, User}, State) -> 
-    io:format("User ~p subscribed!~n", [User]),
-    case lists:keyfind(RoomName, 1, State) of
-        {RoomName, Users} -> NewState = lists:delete({RoomName, Users}, State),
-                             {noreply, [{RoomName, [User | Users]} | NewState]};
-        false             -> {noreply, [{RoomName, [User]} | State]}
-    end;
-handle_cast({unsubscribe, RoomName, User}, State) ->
-    case lists:keyfind(RoomName, 1, State) of
-        {RoomName, Users} -> NewUsers = lists:delete(User, Users),
-                             NewState = lists:delete({RoomName, Users}, State),
-                             io:format("Unsubscribing user ~p~n", [User]),
-                             {noreply, [{RoomName, NewUsers} | NewState]};
-        false             -> io:format("error: user does not exist"),
-                             {noreply, State}
-    end.
+    {stop, normal, State}.
+% handle_cast({subscribe, RoomName, User}, State) -> 
+%     io:format("User ~p subscribed!~n", [User]),
+%     case lists:keyfind(RoomName, 1, State) of
+%         {RoomName, Users} -> NewState = lists:delete({RoomName, Users}, State),
+%                              {noreply, [{RoomName, [User | Users]} | NewState]};
+%         false             -> {noreply, [{RoomName, [User]} | State]}
+%     end;
+% handle_cast({unsubscribe, RoomName, User}, State) ->
+%     case lists:keyfind(RoomName, 1, State) of
+%         {RoomName, Users} -> NewUsers = lists:delete(User, Users),
+%                              NewState = lists:delete({RoomName, Users}, State),
+%                              io:format("Unsubscribing user ~p~n", [User]),
+%                              {noreply, [{RoomName, NewUsers} | NewState]};
+%         false             -> io:format("error: user does not exist"),
+%                              {noreply, State}
+%     end.
 
 
 % terminates all the processes of the server
@@ -127,16 +121,15 @@ terminate(_Reason, _State) ->
 -spec join_room(atom(), string(), string()) -> ok.
 join_room(Node, RoomName, Name) ->
     Server = {tetris, Node},
-    Player = {Name, {self(), node()}},
-    {Pid, Node} = gen_server:call(Server, {joinroom, RoomName, {Name, {self(), node()}}}),
+    Player = {Name, self()},
+    Pid = gen_server:call(Server, {joinroom, RoomName, {Name, self()}}),
     Pid ! {join_room, Player},
-    {Pid, Node}.
-
-    % Room = gen_server:call(Server, {newroom, RoomName, NumPlayers, {Name, {self(), node()}}}),
+    Pid.
 
 create_room(Node, RoomName, Name, NumPlayers) -> 
     Server = {tetris, Node},
-    gen_server:call(Server, {newroom, RoomName, NumPlayers, {Name, {self(), node()}}}).
+    Pid = gen_server:call(Server, {newroom, RoomName, NumPlayers, {Name, self()}}),
+    Pid.
 
 
 
