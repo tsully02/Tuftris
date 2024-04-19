@@ -74,7 +74,7 @@ start_game(GameRoom) ->
 
 wait_to_start() ->
     receive
-        {Pid, start} -> Pid;
+        {Pid, start} -> ok;
         _ -> wait_to_start()
     end.
 
@@ -192,13 +192,18 @@ check_clear_row({Type, Rotation, Center, Cells}, Board, GameRoom) ->
         end,
         [],
         Sorted),
-    GameRoom ! {rowcleared, Rows, self()},
-    ok.
+    case Rows of
+        [] -> ok;
+        _ ->
+            GameRoom ! {rowcleared, Rows, self()},
+            ok
+    end.
 
 clear_row(Rows, Board, Win) ->
     NewBoard = lists:foldl(fun (R, CurrBoard) -> board:remove_row(CurrBoard, R) end, Board, Rows),
     tetris_io:animate_clear_row(Rows, Win, 0),
     tetris_io:draw_board(NewBoard, Win),
+    cecho:refresh(),
     NewBoard.
 
 get_ghost(Tetromino, Board) ->
@@ -268,23 +273,32 @@ wait_for_input(Tetromino, Ghost, Win, Board, TimerPid, GameRoom) ->
     receive
         {TimerPid, timer} ->
             case process_key(?ceKEY_DOWN, Tetromino, Ghost, Win, Board, TimerPid, GameRoom) of
-                blocked -> ok;
+                blocked -> 
+                    GameRoom ! stop,
+                    ok;
                 {NewWin, NewTetromino, NewGhost, NewBoard, NewTimerPid} ->
                            wait_for_input(NewTetromino, NewGhost, NewWin, NewBoard, NewTimerPid, GameRoom)
             end;
         {_Pid, key, $q} -> 
+            GameRoom ! stop,
             tetris_io:stop(),
             io:format("Thanks for playing!~n");
         {_Pid, key, Key} ->
             case process_key(Key, Tetromino, Ghost, Win, Board, TimerPid, GameRoom) of
-                blocked -> ok;
+                blocked -> 
+                    GameRoom ! stop,
+                    ok;
                 {NewWin, NewTetromino, NewGhost, NewBoard, NewTimerPid} ->
                     wait_for_input(NewTetromino, NewGhost, NewWin, NewBoard, NewTimerPid, GameRoom)
             end;
         {clearrow, Rows} -> 
-            io:format("row cleared~n"),
+            % io:format("row cleared~n"),
             NewBoard = clear_row(Rows, Board, Win),
-            wait_for_input(Tetromino, Ghost, Win, NewBoard, TimerPid, GameRoom);
+            NewGhost = get_ghost(Tetromino, NewBoard),
+            tetris_io:draw_ghost(NewGhost, Win, NewBoard),
+            tetris_io:draw_tetromino(Tetromino, Win),
+            cecho:refresh(),
+            wait_for_input(Tetromino, NewGhost, Win, NewBoard, TimerPid, GameRoom);
         {newpiece, _PInfo, _T} -> 
             % io:format("Player ~p got a new piece!", [PInfo]),
             % send message to pid that controls other player's boards???

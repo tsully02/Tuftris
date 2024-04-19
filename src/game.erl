@@ -27,7 +27,7 @@
 
 init(RoomName, NumPlayers, {PlayerName, PlayerPid}) -> 
     io:format("~p ~p: ~p joined the game!~n", [RoomName, self(), PlayerName]),
-    Players = receive_players([{PlayerName, PlayerPid, board:create(?BOARD_WIDTH, ?BOARD_HEIGHT, ?SCREEN_BGD_COLOR)}], NumPlayers, 1),
+    Players = receive_players([{PlayerName, PlayerPid}], NumPlayers, 1),
     % Listener = spawn(fun () -> receive_messages(Players) end),
     send_message_to_all({self(), start}, Players),
     io:format("Num players: ~p~n", [length(Players)]),
@@ -35,11 +35,11 @@ init(RoomName, NumPlayers, {PlayerName, PlayerPid}) ->
     ok.
 
 send_message_to_all(Message, Players) ->
-    lists:foreach(fun ({_, Pid, _}) -> Pid ! Message end, Players).
+    lists:foreach(fun ({_, Pid}) -> Pid ! Message end, Players).
 
-send_message(Message, [{_, From, _} | Tail], From) ->
-    lists:foreach(fun ({_, Pid, _}) -> Pid ! Message end, Tail);
-send_message(Message, [{_, Head, _} | Tail], From) ->
+send_message(Message, [{_, From} | Tail], From) ->
+    lists:foreach(fun ({_, Pid}) -> Pid ! Message end, Tail);
+send_message(Message, [{_, Head} | Tail], From) ->
     Head ! Message,
     send_message(Message, Tail, From).
 
@@ -50,7 +50,7 @@ receive_players(Players, MaxPlayers, NumPlayers) ->
         {join_room, {PlayerName, PlayerPid}} -> 
             io:format("~p: ~p joined the game!~n", [self(), PlayerName]),
             % Player = {PlayerName, PlayerPid},
-            Player = {PlayerName, PlayerPid, board:create(?BOARD_WIDTH, ?BOARD_HEIGHT, ?SCREEN_BGD_COLOR)},
+            Player = {PlayerName, PlayerPid},
             NewPlayers = [Player | Players],
             receive_players(NewPlayers, MaxPlayers, NumPlayers + 1);
         M ->
@@ -58,31 +58,39 @@ receive_players(Players, MaxPlayers, NumPlayers) ->
             receive_players(Players, MaxPlayers, NumPlayers)
     end.
 
-check_rows(Players, Row, Rows, NumCurrPlayers) ->
-    {Above, Below} = lists:split(Row, Rows),
-    CurrRow = lists:last(Above) + 1,
-    io:format("Row ~p:~p~n", [Row, CurrRow]),
-    NewAbove = lists:droplast(Above),
-    case CurrRow of
-        NumCurrPlayers -> 
-            send_message_to_all({clearrow, [Row]}, Players),
-            lists:append([[0], NewAbove, Below]);
-        _ -> lists:append([NewAbove, [CurrRow], Below])
-    end.
+
+check_rows(Players, ClearedRows, Rows, NumCurrPlayers) ->
+    UpdatedRows = lists:map(fun ({Idx, Cnt}) ->
+                                case lists:member(Idx, ClearedRows) of
+                                    true -> Cnt + 1;
+                                    false -> Cnt
+                                end
+                            end,
+                            lists:enumerate(Rows)),
+    RowsToSend = lists:filtermap(fun ({Idx, Cnt}) ->
+                                    case Cnt of
+                                        NumCurrPlayers -> {true, Idx};
+                                        _ -> false
+                                    end
+                                end, lists:enumerate(UpdatedRows)),
+    send_message_to_all({clearrow, RowsToSend}, Players),
+    NewRows = lists:delete(NumCurrPlayers, Rows),
+    lists:append(lists:duplicate(?BOARD_HEIGHT - length(NewRows), length(Players) - NumCurrPlayers), NewRows).
 
 receive_messages(Players, Rows, NumCurrPlayers) ->
     receive
         {newpiece, T, PInfo} ->
-            io:format("sending piece message~n", []),
+            io:format("new piece!~n", []),
             send_message({newpiece, PInfo, T}, Players, PInfo),
             receive_messages(Players, Rows, NumCurrPlayers);
         {rowcleared, ClearedRows, _PInfo} ->
             io:format("clearing row ~p~n", [ClearedRows]),
-            NewRows = lists:foldl(fun (R, Acc) -> check_rows(Players, R, Acc, NumCurrPlayers) end, Rows, ClearedRows),
+            NewRows = check_rows(Players, ClearedRows, Rows, NumCurrPlayers),
             receive_messages(Players, NewRows, NumCurrPlayers);
         {placepiece, T, PInfo} ->
+            io:format("Piece placed!~n"),
             send_message({placepiece, PInfo, T}, Players, PInfo),
-            receive_messages(Players, NewRows, NumCurrPlayers);
+            receive_messages(Players, Rows, NumCurrPlayers);
         stop -> ok;
         Any ->
             io:format("Unhandled message: ~p~n", [Any]),
