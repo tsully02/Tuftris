@@ -67,6 +67,7 @@ check_rows(Players, ClearedRows, Rows, NumCurrPlayers) ->
                                 end
                             end,
                             lists:enumerate(Rows)),
+    io:format("updaated counts: ~p~n", [UpdatedRows]),
     RowsToSend = lists:filtermap(fun ({Idx, Cnt}) ->
                                     case Cnt of
                                         NumCurrPlayers -> {true, Idx};
@@ -74,21 +75,23 @@ check_rows(Players, ClearedRows, Rows, NumCurrPlayers) ->
                                     end
                                 end, lists:enumerate(UpdatedRows)),
     send_message_to_all({clearrow, RowsToSend}, Players),
-    NewRows = lists:delete(NumCurrPlayers, Rows),
+    io:format("rows cleared: ~p~n", [RowsToSend]),
+    NewRows = lists:delete(NumCurrPlayers, UpdatedRows),
+    io:format("new rows: ~p~n", [NewRows]),
     lists:append(lists:duplicate(?BOARD_HEIGHT - length(NewRows), length(Players) - NumCurrPlayers), NewRows).
 
 receive_messages(Players, Rows, NumCurrPlayers) ->
     receive
         {newpiece, T, PInfo} ->
-            io:format("new piece!~n", []),
+            % io:format("new piece!~n", []),
             send_message({newpiece, PInfo, T}, Players, PInfo),
             receive_messages(Players, Rows, NumCurrPlayers);
         {rowcleared, ClearedRows, _PInfo} ->
-            io:format("clearing row ~p~n", [ClearedRows]),
+            % io:format("clearing row ~p~n", [ClearedRows]),
             NewRows = check_rows(Players, ClearedRows, Rows, NumCurrPlayers),
             receive_messages(Players, NewRows, NumCurrPlayers);
         {placepiece, T, PInfo} ->
-            io:format("Piece placed!~n"),
+            % io:format("Piece placed!~n"),
             send_message({placepiece, PInfo, T}, Players, PInfo),
             receive_messages(Players, Rows, NumCurrPlayers);
         stop -> ok;
