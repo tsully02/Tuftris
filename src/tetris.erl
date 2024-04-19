@@ -57,8 +57,8 @@ tetris(quit) ->
 %     timer:sleep(2000),
 %     tetris_io:stop();
 % % tetris({multi, GameRoom}) ->
-tetris(game) ->
-    GameRoom = wait_to_start(),
+tetris({game, GameRoom}) ->
+    wait_to_start(),
     start_game(GameRoom).
 
 start_game(GameRoom) ->
@@ -79,7 +79,7 @@ wait_to_start() ->
     end.
 
 title_screen(Win, UserName) ->
-    tetris_io:draw_title_screen(Win, ["Press:", "1 - Single player", "2 - Create a multiplayer room", "3 - Join a multiplayer room", "q - quit"]),
+    tetris_io:draw_title_screen(Win, ?TITLE_MSG),
     Status = title_screen_keyboard_loop(UserName, Win),
     tetris_io:paint_screen(scrbg),
     Status.
@@ -93,32 +93,66 @@ get_num_players() ->
         {_Pid, key, _} -> get_num_players()
     end.
 
+create_multi_room(UserName, Win) ->
+    tetris_io:draw_title_screen(Win, ["Enter a room name:"]),
+    RoomName = tetris_io:text_box(Win, 15, 14),
+    tetris_io:draw_title_screen(Win, ["Enter the number of players (2-5)"]),
+    NumPlayers = get_num_players(),
+    case NumPlayers of
+        0 -> title_screen_keyboard_loop(UserName, Win);
+        _ ->  GameRoom = server:create_room('server@vm-hw09.eecs.tufts.edu', RoomName, UserName, NumPlayers),
+            case GameRoom of 
+                already_exists -> 
+                    Msg = lists:append(["Room ", RoomName, " already exists!"]),
+                    error_title(Win, Msg),
+                    title_screen_keyboard_loop(UserName, Win);
+                _ -> {game, GameRoom}
+            end
+    end.
+
+join_multi_room(UserName, Win) ->
+    tetris_io:draw_title_screen(Win, ["Enter a room name:"]),
+    RoomName = tetris_io:text_box(Win, 15, 14),
+    GameRoom = server:join_room('server@vm-hw09.eecs.tufts.edu', RoomName, UserName),
+    case GameRoom of 
+        room_full -> 
+            Msg = lists:append(["Room ", RoomName, " is full, sorry :("]),
+            error_title(Win, Msg),
+            title_screen_keyboard_loop(UserName, Win);
+        no_such_room -> 
+            Msg = lists:append(["Room ", RoomName, " does not exist!"]),
+            error_title(Win, Msg),
+            title_screen_keyboard_loop(UserName, Win);
+        _ -> {game, GameRoom}
+    end.
+
+error_title(Win, Msg) -> 
+    tetris_io:draw_title_screen(Win, [Msg, "Press [Space] to continue"]),
+    receive_space(),
+    tetris_io:draw_title_screen(Win, ?TITLE_MSG).
+
+receive_space() -> 
+    receive
+        {_Pid, key, ?KEY_SPACE}-> ok;
+        _ -> receive_space()
+    end.
+
 title_screen_keyboard_loop(UserName, Win) ->
     receive
         {_Pid, key, $1} -> 
-            _GameRoom = server:create_room('server@vm-hw09.eecs.tufts.edu', UserName, UserName, NumPlayers),
+            GameRoom = server:create_room('server@vm-hw09.eecs.tufts.edu', UserName, UserName, 1),
             case GameRoom of 
-                already_exists -> io:format("You are already playing a solo game! :P~n"),
-                title_screen_keyboard_loop(UserName, Win)
-                _ -> GameRoom
+                already_exists -> 
+                    Msg = "You are already playing a solo game! :P",
+                    error_title(Win, Msg),
+                    title_screen_keyboard_loop(UserName, Win);
+                _ -> {game, GameRoom}
             end;
-            game;
         {_Pid, key, $2} -> 
             % io:format("messaging server...~n"),
-            tetris_io:draw_title_screen(Win, ["Enter a room name:"]),
-            RoomName = tetris_io:text_box(Win, 15, 14),
-            tetris_io:draw_title_screen(Win, ["Enter the number of players (2-5)"]),
-            NumPlayers = get_num_players(),
-            case NumPlayers of
-                0 -> title_screen_keyboard_loop(UserName, Win);
-                _ ->  _GameRoom = server:create_room('server@vm-hw09.eecs.tufts.edu', RoomName, UserName, NumPlayers),
-                    game
-            end;
+            create_multi_room(UserName, Win);
         {_Pid, key, $3} -> 
-            tetris_io:draw_title_screen(Win, ["Enter a room name:"]),
-            RoomName = tetris_io:text_box(Win, 15, 14),
-            _GameRoom = server:join_room('server@vm-hw09.eecs.tufts.edu', RoomName, UserName),
-            game;
+            join_multi_room(UserName, Win);
         {_Pid, key, $q} -> quit;
         % {_Pid, key, $t} -> tboxtest;
         {_Pid, key, _} -> title_screen_keyboard_loop(UserName, Win)
@@ -145,30 +179,27 @@ title_screen_keyboard_loop(UserName, Win) ->
 %%%     Left arrow: move left
 %%%     Down arrow: move down
 
-clear_row({Type, Rotation, Center, Cells}, Board, Win) ->
-    % for each cell that was placed, check the row
+check_clear_row({Type, Rotation, Center, Cells}, Board, GameRoom) ->
     Placed = tetromino:get_all_coords({Type, Rotation, Center, Cells}),
     Sorted = lists:sort(fun ({R1, _}, {R2, _}) -> R1 < R2 end, Placed),
-    % file:write_file("output.txt", io_lib:fwrite("piece ~p has been Sorted in cells ~p~n", [Type, Sorted]), [append]),
-    {FinalBoard, Rows} = lists:foldl(
-        fun ({Row, _Col}, {CurrBoard, Rows}) ->
-            % io:format("Row, Col: ~p, ~p~n", [Row, Col]),
-            % file:write_file("output.txt", io_lib:fwrite("Row, Col: ~p, ~p~n", [Row, Col]), [append]),
-            case lists:all(fun (CurrCol) -> board:is_filled(CurrBoard, Row, CurrCol) end, lists:seq(0, ?BOARD_WIDTH - 1))
+    Rows = lists:foldl(
+        fun ({Row, _Col}, Rows) ->
+            case lists:all(fun (CurrCol) -> board:is_filled(Board, Row, CurrCol) end, lists:seq(0, ?BOARD_WIDTH - 1))
             of
-                true -> %file:write_file("output.txt", io_lib:fwrite("removing row ~p~n", [Row]), [append]),
-                        % tetris_io:animate_clear_row(Row, Win, 0),
-                        NewBoard = board:remove_row(CurrBoard, Row),
-                        % tetris_io:draw_board(NewBoard, Win),
-                        {NewBoard, [Row | Rows]};
-                false -> {CurrBoard, Rows}
+                true -> [Row | Rows];
+                false -> Rows
             end
         end,
-        {Board, []},
+        [],
         Sorted),
+    GameRoom ! {rowcleared, Rows, self()},
+    ok.
+
+clear_row(Rows, Board, Win) ->
+    NewBoard = lists:foldl(fun (R, CurrBoard) -> board:remove_row(CurrBoard, R) end, Board, Rows),
     tetris_io:animate_clear_row(Rows, Win, 0),
-    tetris_io:draw_board(FinalBoard, Win),
-    FinalBoard.
+    tetris_io:draw_board(NewBoard, Win),
+    NewBoard.
 
 get_ghost(Tetromino, Board) ->
     tetromino:move_to_lowest_position(Tetromino, Board).
@@ -184,7 +215,7 @@ process_key(Key, Tetromino, Ghost, Win, Board, TimerPid, GameRoom) ->
             {Win, tetromino:move_right(Tetromino)};
         ?ceKEY_DOWN ->
             {Win, tetromino:move_down(Tetromino)};
-        32 ->
+        ?KEY_SPACE ->
             {Win, tetromino:move_to_lowest_position(Tetromino, Board)};
         $z -> 
             {Win, tetromino:rotate(-1, Tetromino)};
@@ -204,21 +235,22 @@ process_key(Key, Tetromino, Ghost, Win, Board, TimerPid, GameRoom) ->
                 _ ->
                     case Key of 
                         ?ceKEY_DOWN -> NewBoard = board:place_piece(Board, Tetromino),
+                            GameRoom ! {placepiece, Tetromino, self()},
                             tetris_io:draw_board(NewBoard, Win),
                             TimerPid ! {self(), kill},
-                            NewNewBoard = clear_row(Tetromino, NewBoard, Win),
+                            check_clear_row(Tetromino, NewBoard, GameRoom),
                             {NewTetromino, NewTimerPid} = tetromino:generate(self(), 1000, {1, 5}, GameRoom),
-                            NewGhost = get_ghost(NewTetromino, NewNewBoard),
-                            tetris_io:draw_ghost(NewGhost, Win, NewNewBoard),
-                            tetris_io:delete_tetromino(Tetromino, Win, NewNewBoard),
+                            NewGhost = get_ghost(NewTetromino, NewBoard),
+                            tetris_io:draw_ghost(NewGhost, Win, NewBoard),
+                            tetris_io:delete_tetromino(Tetromino, Win, NewBoard),
                             tetris_io:draw_tetromino(NewTetromino, ResultWin),
-                            {Win, NewTetromino, NewGhost, NewNewBoard, NewTimerPid};
+                            {Win, NewTetromino, NewGhost, NewBoard, NewTimerPid};
                         _ -> {ResultWin, Tetromino, Ghost, Board, TimerPid}
                     end
             end;
         false ->  % Redraw new tetromino and ghost
             case Key of 
-                32 -> 
+                ?KEY_SPACE -> 
                     tetris_io:delete_tetromino(Tetromino, Win, Board),
                     process_key(?ceKEY_DOWN, NewT2, Ghost, Win, Board, TimerPid, GameRoom);
                 _ -> 
@@ -249,9 +281,15 @@ wait_for_input(Tetromino, Ghost, Win, Board, TimerPid, GameRoom) ->
                 {NewWin, NewTetromino, NewGhost, NewBoard, NewTimerPid} ->
                     wait_for_input(NewTetromino, NewGhost, NewWin, NewBoard, NewTimerPid, GameRoom)
             end;
-        {newpiece, PInfo, _T} -> 
+        {clearrow, Rows} -> 
+            io:format("row cleared~n"),
+            NewBoard = clear_row(Rows, Board, Win),
+            wait_for_input(Tetromino, Ghost, Win, NewBoard, TimerPid, GameRoom);
+        {newpiece, _PInfo, _T} -> 
             % io:format("Player ~p got a new piece!", [PInfo]),
             % send message to pid that controls other player's boards???
+            wait_for_input(Tetromino, Ghost, Win, Board, TimerPid, GameRoom);
+        {placepiece, _PInfo, _T} ->
             wait_for_input(Tetromino, Ghost, Win, Board, TimerPid, GameRoom);
         Other ->
             io:format("Client Unexpected msg: ~p~n", [Other])

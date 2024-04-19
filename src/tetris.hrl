@@ -37,6 +37,7 @@
                                {-1, 1}]).
 
 -define(KEY_RESIZE, 410).
+-define(KEY_SPACE, 32).
 
 -define(BOARD_WIDTH, 10).
 -define(BOARD_HEIGHT, 20).
@@ -47,6 +48,8 @@
 
 -define(BACKGROUND_COLOR, ?ceCOLOR_CYAN).  % 234
 -define(SCREEN_BGD_COLOR, 234).  % 234
+
+-define(TITLE_MSG, ["Press:", "1 - Single player", "2 - Create a multiplayer room", "3 - Join a multiplayer room", "q - quit"]).
 
 -define(TITLE_LOGO, ["[][][][][]   []    []   [][][][]   [][][][][]   [][][][]   [][][][][]   [][][][]",
                      "    []       []    []   []             []       []    []       []       []      ",

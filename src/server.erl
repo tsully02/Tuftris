@@ -123,8 +123,10 @@ join_room(Node, RoomName, Name) ->
     Server = {tetris, Node},
     Player = {Name, self()},
     Pid = gen_server:call(Server, {joinroom, RoomName, {Name, self()}}),
-    Pid ! {join_room, Player},
-    Pid.
+    case Pid of
+        Err when Err == room_full; Err == no_such_room -> Err;
+        _ -> Pid ! {join_room, Player}, Pid
+    end.
 
 create_room(Node, RoomName, Name, NumPlayers) -> 
     Server = {tetris, Node},

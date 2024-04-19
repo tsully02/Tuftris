@@ -1,5 +1,7 @@
 -module(board).
 
+% Boards are 0-indexed in both dimensions
+
 % -include_lib("../cecho/include/cecho.hrl").
 -include_lib("tetris.hrl").
 
@@ -13,6 +15,7 @@ list_of_arrays(0, List, _ArrLen) -> List;
 list_of_arrays(LLen, List, ArrLen) ->
     list_of_arrays(LLen - 1, lists:append(List, [array:new(ArrLen)]), ArrLen).
 
+% Iinternally, the board is a list of arrays and arrays are 0-indexed while lists are 1-indexed
 get_cell(Board, Row, Col) ->
     % io:format("Board: ~p~n", [Board]),
     Arr = lists:nth(Row + 1, Board),

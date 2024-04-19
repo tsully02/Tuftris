@@ -234,12 +234,12 @@ get_text_box_input([PrevChar | PrevInput], Width) ->
         {_Pid, key, $\n} -> lists:reverse([PrevChar | PrevInput]);
         {_Pid, key, ?ceKEY_BACKSPACE} when length(PrevInput) == (Width * 2) - 1 -> {Y, X} = cecho:getyx(),
                                          cecho:move(Y, X + 1),
-                                         cecho:addch(32),
+                                         cecho:addch(?KEY_SPACE),
                                          cecho:move(Y, X + 1),
                                          cecho:refresh(),
                                          get_text_box_input(PrevInput, Width);
         {_Pid, key, ?ceKEY_BACKSPACE} -> {Y, X} = cecho:getyx(),
-                                         cecho:addch(32),
+                                         cecho:addch(?KEY_SPACE),
                                          cecho:move(Y, X),
                                          cecho:refresh(),
                                          get_text_box_input(PrevInput, Width);
@@ -257,7 +257,7 @@ get_text_box_input([PrevChar | PrevInput], Width) ->
 
 generate_box(Width) ->
     Line = lists:concat(["+", lists:duplicate(Width * 2, $-), "+"]),
-    CenterRow = lists:concat(["|", lists:duplicate(Width * 2, 32), "|"]),
+    CenterRow = lists:concat(["|", lists:duplicate(Width * 2, ?KEY_SPACE), "|"]),
     [Line, CenterRow, Line].
 
 % Draw a text box where the typing location is at Row and of Width (2-col units), then return what the user typed
