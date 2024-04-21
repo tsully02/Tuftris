@@ -64,13 +64,17 @@ tetris({game, GameRoom}) ->
 start_game(GameRoom) ->
     Win = tetris_io:calc_game_win_coords(?BOARD_WIDTH, ?BOARD_HEIGHT),
     Board = board:create(?BOARD_WIDTH, ?BOARD_HEIGHT, ?BACKGROUND_COLOR),
-    {T, TimerPid} = tetromino:generate(self(), 1000, {1, 5}, GameRoom),
+    TimerPid = new_timer(self(), 1000),
+    T = tetromino:generate({1, 5}, GameRoom),
     tetris_io:draw_board(Board, Win),
     tetris_io:draw_tetromino(T, Win),
     Ghost = get_ghost(T, Board),
     tetris_io:delete_tetromino(Ghost, Win, Board),
     tetris_io:draw_ghost(Ghost, Win, Board),
     wait_for_input(T, Ghost, Win, Board, TimerPid, GameRoom).
+
+new_timer(Pid, Time) ->
+    spawn(fun () -> timer(Pid, Time) end).
 
 wait_to_start() ->
     receive
@@ -244,12 +248,12 @@ process_key(Key, Tetromino, Ghost, Win, Board, TimerPid, GameRoom) ->
                             tetris_io:draw_board(NewBoard, Win),
                             TimerPid ! {self(), kill},
                             check_clear_row(Tetromino, NewBoard, GameRoom),
-                            {NewTetromino, NewTimerPid} = tetromino:generate(self(), 1000, {1, 5}, GameRoom),
+                            NewTetromino = tetromino:generate({1, 5}, GameRoom),
                             NewGhost = get_ghost(NewTetromino, NewBoard),
                             tetris_io:draw_ghost(NewGhost, Win, NewBoard),
                             tetris_io:delete_tetromino(Tetromino, Win, NewBoard),
                             tetris_io:draw_tetromino(NewTetromino, ResultWin),
-                            {Win, NewTetromino, NewGhost, NewBoard, NewTimerPid};
+                            {Win, NewTetromino, NewGhost, NewBoard, TimerPid};
                         _ -> {ResultWin, Tetromino, Ghost, Board, TimerPid}
                     end
             end;
@@ -286,8 +290,8 @@ wait_for_input(Tetromino, Ghost, Win, Board, TimerPid, GameRoom) ->
             ok;
         {_Pid, key, $l} -> 
             TimerPid ! kill,
-            {NewTetromino, NewTimerPid} = tetromino:generate(self(), 1000, {1, 5}, line),
-            wait_for_input(NewTetromino, Ghost, Win, Board, NewTimerPid, GameRoom);
+            NewTetromino = tetromino:generate(self(), 1000, {1, 5}, line),
+            wait_for_input(NewTetromino, Ghost, Win, Board, TimerPid, GameRoom);
         {_Pid, key, Key} ->
             case process_key(Key, Tetromino, Ghost, Win, Board, TimerPid, GameRoom) of
                 blocked -> 
