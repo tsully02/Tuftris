@@ -105,14 +105,16 @@ receive_messages(Players, Rows, NumCurrPlayers) ->
             NewNum = NumCurrPlayers - 1,
             case NewNum of 
                 0 -> ok;
-                _ -> receive_messages(Players, Rows, NewNum)
+                _ -> NewRows = check_rows(Players, [], Rows, NewNum),
+                receive_messages(Players, NewRows, NewNum)
             end;
         {playerquit, PInfo} ->
             NewPlayers = lists:keydelete(PInfo, 2, Players),
             NewNum = NumCurrPlayers - 1,
             case NewNum of 
                 0 -> ok;
-                _ -> receive_messages(NewPlayers, Rows, NewNum)
+                _ -> NewRows = check_rows(NewPlayers, [], Rows, NewNum),
+                receive_messages(NewPlayers, NewRows, NewNum)
             end;
         stop -> ok;
         Any ->
