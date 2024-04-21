@@ -3,7 +3,7 @@
 % -include_lib("../cecho/include/cecho.hrl").
 -include_lib("tetris.hrl").
 
--export([init/3]).
+-export([init/4]).
 
 
 %%% init called by server
@@ -25,13 +25,14 @@
 %%%
 %%%
 
-init(RoomName, NumPlayers, {PlayerName, PlayerPid}) -> 
+init(ServerInfo, RoomName, NumPlayers, {PlayerName, PlayerPid}) -> 
     io:format("~p ~p: ~p joined the game!~n", [RoomName, self(), PlayerName]),
     Players = receive_players([{PlayerName, PlayerPid}], NumPlayers, 1),
     % Listener = spawn(fun () -> receive_messages(Players) end),
     send_message_to_all({self(), start}, Players),
     io:format("Num players: ~p~n", [length(Players)]),
     receive_messages(Players, lists:duplicate(?BOARD_HEIGHT, 0), length(Players)),
+    server:game_over(ServerInfo, RoomName),
     ok.
 
 send_message_to_all(Message, Players) ->
@@ -59,11 +60,11 @@ receive_players(Players, MaxPlayers, NumPlayers) ->
     end.
 
 
-delete_num([], Num) -> [];
-delete_num([H | T], Num) ->
-    [H | delete_num(T, Num)];
+delete_num([], _Num) -> [];
 delete_num([Num | T], Num) -> 
-    delete_num(T, Num).
+    delete_num(T, Num);
+delete_num([H | T], Num) ->
+    [H | delete_num(T, Num)].
 
 check_rows(Players, ClearedRows, Rows, NumCurrPlayers) ->
     UpdatedRows = lists:map(fun ({Idx, Cnt}) ->
@@ -100,13 +101,24 @@ receive_messages(Players, Rows, NumCurrPlayers) ->
             % io:format("Piece placed!~n"),
             send_message({placepiece, PInfo, T}, Players, PInfo),
             receive_messages(Players, Rows, NumCurrPlayers);
+        {playerlost, _PInfo} ->
+            NewNum = NumCurrPlayers - 1,
+            case NewNum of 
+                0 -> ok;
+                _ -> receive_messages(Players, Rows, NewNum)
+            end;
+        {playerquit, PInfo} ->
+            NewPlayers = lists:keydelete(PInfo, 2, Players),
+            NewNum = NumCurrPlayers - 1,
+            case NewNum of 
+                0 -> ok;
+                _ -> receive_messages(NewPlayers, Rows, NewNum)
+            end;
         stop -> ok;
         Any ->
             io:format("Unhandled message: ~p~n", [Any]),
             receive_messages(Players, Rows, NumCurrPlayers)
     end.
 
-
 % TODO: player enters room but leaves before the game has begun
-% TODO: when user quits or leaves, tell game (or loses)
 % TODO: when last user quits or leaves, stop game (or loses)

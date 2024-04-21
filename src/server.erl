@@ -12,7 +12,7 @@
 -export([init/1, handle_call/3, handle_cast/2, terminate/2]).
 
 % client functions
--export([join_room/3, create_room/4]).
+-export([join_room/3, create_room/4, game_over/2]).
 
 %%%===================================================================
 %%% Server Administration
@@ -51,7 +51,7 @@ handle_call({newroom, RoomName, NumPlayers, Player}, _From, State) ->
     case IsRoom of 
         true -> {reply, already_exists, State};
         _ -> 
-            RoomPid = spawn(game, init, [RoomName, NumPlayers, Player]),
+            RoomPid = spawn(game, init, [node(), RoomName, NumPlayers, Player]),
             io:format("Game Room Pid: ~p~n", [RoomPid]),
             Room = {RoomName, RoomPid, NumPlayers, [Player]},
             {reply, RoomPid, [Room | State]}
@@ -68,8 +68,18 @@ handle_call({joinroom, RoomName, Player}, _From, State) ->
                     NewState = add_player(RoomName, Player, State),
                     {reply, RoomInfo, NewState}
             end
-    end. 
-            
+    end;
+handle_call({delete, RoomName}, _From, State) ->
+    NewState = delete_room(RoomName, State),
+    io:format("Deleting ~p: ~p~n", [RoomName, NewState]),
+    {reply, ok, NewState}.
+
+
+delete_room(_, []) -> [];
+delete_room(RoomName, [{RoomName, _, _, _} | T]) ->
+    T;
+delete_room(RoomName, [H | T]) ->
+    [H | delete_room(T, RoomName)].
 
 is_room(RoomName, State) ->
     lists:any(fun ({Room, _, _, _}) -> equal(Room, RoomName) end, State).
@@ -133,23 +143,6 @@ create_room(Node, RoomName, Name, NumPlayers) ->
     Pid = gen_server:call(Server, {newroom, RoomName, NumPlayers, {Name, self()}}),
     Pid.
 
-
-
-% loop for listener process to receive messages
--spec receive_messages(tuple(), string()) -> ok.
-receive_messages(Server, RoomName) ->
-    receive
-        done ->
-            ok;
-        quitting ->
-            io:format("Server has stopped; type \"--quit\" now to exit chat~n"),
-            ok;
-        Any ->
-            io:format("Unhandled message: ~p~n", [Any]),
-            receive_messages(Server, RoomName)
-    end.
-
-
-% loop for sending messages so user can chat
--spec send_messages(string(), tuple()) -> ok.
-send_messages(_RoomName, _Server) -> ok.
+game_over(Node, RoomName) ->
+    Server = {tetris, Node},
+    gen_server:call(Server, {delete, RoomName}).

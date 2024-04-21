@@ -100,7 +100,7 @@ create_multi_room(UserName, Win) ->
     NumPlayers = get_num_players(),
     case NumPlayers of
         0 -> title_screen_keyboard_loop(UserName, Win);
-        _ ->  GameRoom = server:create_room('server@vm-hw09.eecs.tufts.edu', RoomName, UserName, NumPlayers),
+        _ ->  GameRoom = server:create_room('server@vm-hw02.eecs.tufts.edu', RoomName, UserName, NumPlayers),
             case GameRoom of 
                 already_exists -> 
                     Msg = lists:append(["Room ", RoomName, " already exists!"]),
@@ -113,7 +113,7 @@ create_multi_room(UserName, Win) ->
 join_multi_room(UserName, Win) ->
     tetris_io:draw_title_screen(Win, ["Enter a room name:"]),
     RoomName = tetris_io:text_box(Win, 15, 14),
-    GameRoom = server:join_room('server@vm-hw09.eecs.tufts.edu', RoomName, UserName),
+    GameRoom = server:join_room('server@vm-hw02.eecs.tufts.edu', RoomName, UserName),
     case GameRoom of 
         room_full -> 
             Msg = lists:append(["Room ", RoomName, " is full, sorry :("]),
@@ -140,7 +140,7 @@ receive_space() ->
 title_screen_keyboard_loop(UserName, Win) ->
     receive
         {_Pid, key, $1} -> 
-            GameRoom = server:create_room('server@vm-hw05.eecs.tufts.edu', UserName, UserName, 1),
+            GameRoom = server:create_room('server@vm-hw02.eecs.tufts.edu', UserName, UserName, 1),
             case GameRoom of 
                 already_exists -> 
                     Msg = "You are already playing a solo game! :P",
@@ -280,7 +280,7 @@ wait_for_input(Tetromino, Ghost, Win, Board, TimerPid, GameRoom) ->
                            wait_for_input(NewTetromino, NewGhost, NewWin, NewBoard, NewTimerPid, GameRoom)
             end;
         {_Pid, key, $q} -> 
-            GameRoom ! stop,
+            GameRoom ! {playerquit, self()},
             tetris_io:stop(),
             io:format("Thanks for playing!~n"),
             ok;
@@ -291,7 +291,7 @@ wait_for_input(Tetromino, Ghost, Win, Board, TimerPid, GameRoom) ->
         {_Pid, key, Key} ->
             case process_key(Key, Tetromino, Ghost, Win, Board, TimerPid, GameRoom) of
                 blocked -> 
-                    GameRoom ! stop,
+                    GameRoom ! {playerlost, self()},
                     ok;
                 {NewWin, NewTetromino, NewGhost, NewBoard, NewTimerPid} ->
                     wait_for_input(NewTetromino, NewGhost, NewWin, NewBoard, NewTimerPid, GameRoom)
