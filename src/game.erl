@@ -59,9 +59,15 @@ receive_players(Players, MaxPlayers, NumPlayers) ->
     end.
 
 
+delete_num([], Num) -> [];
+delete_num([H | T], Num) ->
+    [H | delete_num(T, Num)];
+delete_num([Num | T], Num) -> 
+    delete_num(T, Num).
+
 check_rows(Players, ClearedRows, Rows, NumCurrPlayers) ->
     UpdatedRows = lists:map(fun ({Idx, Cnt}) ->
-                                case lists:member(Idx, ClearedRows) of
+                                case lists:member(Idx - 1, ClearedRows) of
                                     true -> Cnt + 1;
                                     false -> Cnt
                                 end
@@ -70,13 +76,13 @@ check_rows(Players, ClearedRows, Rows, NumCurrPlayers) ->
     io:format("updaated counts: ~p~n", [UpdatedRows]),
     RowsToSend = lists:filtermap(fun ({Idx, Cnt}) ->
                                     case Cnt of
-                                        NumCurrPlayers -> {true, Idx};
+                                        NumCurrPlayers -> {true, Idx - 1};
                                         _ -> false
                                     end
                                 end, lists:enumerate(UpdatedRows)),
     send_message_to_all({clearrow, RowsToSend}, Players),
     io:format("rows cleared: ~p~n", [RowsToSend]),
-    NewRows = lists:delete(NumCurrPlayers, UpdatedRows),
+    NewRows = delete_num(UpdatedRows, NumCurrPlayers),
     io:format("new rows: ~p~n", [NewRows]),
     lists:append(lists:duplicate(?BOARD_HEIGHT - length(NewRows), length(Players) - NumCurrPlayers), NewRows).
 

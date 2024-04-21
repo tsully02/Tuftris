@@ -140,7 +140,7 @@ receive_space() ->
 title_screen_keyboard_loop(UserName, Win) ->
     receive
         {_Pid, key, $1} -> 
-            GameRoom = server:create_room('server@vm-hw09.eecs.tufts.edu', UserName, UserName, 1),
+            GameRoom = server:create_room('server@vm-hw05.eecs.tufts.edu', UserName, UserName, 1),
             case GameRoom of 
                 already_exists -> 
                     Msg = "You are already playing a solo game! :P",
@@ -282,7 +282,8 @@ wait_for_input(Tetromino, Ghost, Win, Board, TimerPid, GameRoom) ->
         {_Pid, key, $q} -> 
             GameRoom ! stop,
             tetris_io:stop(),
-            io:format("Thanks for playing!~n");
+            io:format("Thanks for playing!~n"),
+            ok;
         {_Pid, key, $l} -> 
             TimerPid ! kill,
             {NewTetromino, NewTimerPid} = tetromino:generate(self(), 1000, {1, 5}, line),
