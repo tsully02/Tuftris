@@ -12,7 +12,7 @@
 -export([init/1, handle_call/3, handle_cast/2, terminate/2]).
 
 % client functions
--export([join_room/3, create_room/4, game_over/2]).
+-export([join_room/4, create_room/5, game_over/2]).
 
 %%%===================================================================
 %%% Server Administration
@@ -128,20 +128,19 @@ terminate(_Reason, _State) ->
 %%%===================================================================
 
 % adds the user to the given room running on the given server
--spec join_room(atom(), string(), string()) -> ok.
-join_room(Node, RoomName, Name) ->
+join_room(Node, RoomName, Name, ListenerPid) ->
     Server = {tetris, Node},
-    Player = {Name, self()},
-    {Pid, NumPlayers} = gen_server:call(Server, {joinroom, RoomName, {Name, self()}}),
-    case Pid of
+    Player = {Name, self(), ListenerPid},
+    Reply = gen_server:call(Server, {joinroom, RoomName, {Name, self(), ListenerPid}}),
+    case Reply of
         Err when Err == room_full; Err == no_such_room -> Err;
-        _ -> Pid ! {join_room, Player},
+        {Pid, NumPlayers} -> Pid ! {join_room, Player},
              {Pid, NumPlayers}
     end.
 
-create_room(Node, RoomName, Name, NumPlayers) -> 
+create_room(Node, RoomName, Name, NumPlayers, ListenerPid) -> 
     Server = {tetris, Node},
-    Pid = gen_server:call(Server, {newroom, RoomName, NumPlayers, {Name, self()}}),
+    Pid = gen_server:call(Server, {newroom, RoomName, NumPlayers, {Name, self(), ListenerPid}}),
     Pid.
 
 game_over(Node, RoomName) ->

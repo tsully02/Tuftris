@@ -7,11 +7,12 @@
 
 initiate(UserName) ->
     {_KeyPid, RefreshPid, _MaxRow, _MaxCol} = tetris_io:init(),
+    Listener = spawn_link(fun () -> listener() end),
     % Num = add_horiz_line_c(30, 30, 11000, 1000),
     % io:format("~p~n", [Num]),
     % cecho:refresh(),
     % receive_space("ope"),
-    Status = start_screen(UserName),
+    Status = start_screen(UserName, Listener),
     % Disable auto refresh during the game itself; leave it up to the main client process
     tetris_io:set_auto_refresh(RefreshPid, false),
     tetris(Status).
@@ -58,9 +59,9 @@ wait_to_start(Players) ->
         _ -> wait_to_start(Players)
     end.
 
-title_screen(Win, UserName) ->
+title_screen(Win, UserName, Listener) ->
     tetris_io:draw_title_screen(Win, ?TITLE_MSG),
-    Status = title_screen_keyboard_loop(UserName, Win),
+    Status = title_screen_keyboard_loop(UserName, Win, Listener),
     tetris_io:paint_screen(scrbg),
     Status.
 
@@ -77,37 +78,37 @@ get_num_players(Msg) ->
         {_Pid, key, _} -> get_num_players(Msg)
     end.
 
-create_multi_room(UserName, Win) ->
+create_multi_room(UserName, Win, Listener) ->
     tetris_io:draw_title_screen(Win, ["Enter a room name:"]),
     RoomName = tetris_io:text_box(Win, 15, 14),
     NumPlayersMsg = ["Enter the number of players (2-5)"],
     tetris_io:draw_title_screen(Win, NumPlayersMsg),
     NumPlayers = get_num_players(NumPlayersMsg),
     case NumPlayers of
-        0 -> title_screen_keyboard_loop(UserName, Win);
-        _ ->  GameRoom = server:create_room('t@vm-hw02.eecs.tufts.edu', RoomName, UserName, NumPlayers),
+        0 -> title_screen_keyboard_loop(UserName, Win, Listener);
+        _ ->  GameRoom = server:create_room('t@vm-hw02.eecs.tufts.edu', RoomName, UserName, NumPlayers, Listener),
             case GameRoom of 
                 already_exists -> 
                     Msg = lists:append(["Room ", RoomName, " already exists!"]),
                     error_title(Win, Msg),
-                    title_screen_keyboard_loop(UserName, Win);
+                    title_screen_keyboard_loop(UserName, Win, Listener);
                 _ -> {game, {GameRoom, NumPlayers}}
             end
     end.
 
-join_multi_room(UserName, Win) ->
+join_multi_room(UserName, Win, Listener) ->
     tetris_io:draw_title_screen(Win, ["Enter a room name:"]),
     RoomName = tetris_io:text_box(Win, 15, 14),
-    GameInfo = server:join_room('t@vm-hw02.eecs.tufts.edu', RoomName, UserName),
+    GameInfo = server:join_room('t@vm-hw02.eecs.tufts.edu', RoomName, UserName, Listener),
     case GameInfo of 
         room_full -> 
             Msg = lists:append(["Room ", RoomName, " is full, sorry :("]),
             error_title(Win, Msg),
-            title_screen_keyboard_loop(UserName, Win);
+            title_screen_keyboard_loop(UserName, Win, Listener);
         no_such_room -> 
             Msg = lists:append(["Room ", RoomName, " does not exist!"]),
             error_title(Win, Msg),
-            title_screen_keyboard_loop(UserName, Win);
+            title_screen_keyboard_loop(UserName, Win, Listener);
         _ -> {game, GameInfo}
     end.
 
@@ -127,29 +128,29 @@ receive_space(Msg) ->
         _ -> receive_space(Msg)
     end.
 
-title_screen_keyboard_loop(UserName, Win) ->
+title_screen_keyboard_loop(UserName, Win, Listener) ->
     receive
         {_Pid, key, $1} -> 
-            GameRoom = server:create_room('t@vm-hw02.eecs.tufts.edu', UserName, UserName, 1),
+            GameRoom = server:create_room('t@vm-hw02.eecs.tufts.edu', UserName, UserName, 1, Listener),
             case GameRoom of 
                 already_exists -> 
                     Msg = "You are already playing a solo game! :P",
                     error_title(Win, Msg),
-                    title_screen_keyboard_loop(UserName, Win);
+                    title_screen_keyboard_loop(UserName, Win, Listener);
                 _ -> {game, {GameRoom, 1}}
             end;
         {_Pid, key, $2} -> 
             % io:format("messaging server...~n"),
-            create_multi_room(UserName, Win);
+            create_multi_room(UserName, Win, Listener);
         {_Pid, key, $3} -> 
-            join_multi_room(UserName, Win);
+            join_multi_room(UserName, Win, Listener);
         {_Pid, key, $q} -> quit;
         {_Pid, resize} ->
             NewWin = tetris_io:calc_game_win_coords(?TITLESCR_WIDTH, ?TITLESCR_HEIGHT),
             tetris_io:draw_title_screen(NewWin, ?TITLE_MSG),
-            title_screen_keyboard_loop(UserName, NewWin);
+            title_screen_keyboard_loop(UserName, NewWin, Listener);
         % {_Pid, key, $t} -> tboxtest;
-        {_Pid, key, _} -> title_screen_keyboard_loop(UserName, Win)
+        {_Pid, key, _} -> title_screen_keyboard_loop(UserName, Win, Listener)
     end.
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -341,7 +342,16 @@ timer(Pid, Time) ->
 blockedOut() ->
     blocked.
     
-start_screen(UserName) ->
+start_screen(UserName, Listener) ->
     TitleWin = tetris_io:calc_game_win_coords(?TITLESCR_WIDTH, ?TITLESCR_HEIGHT),
-    title_screen(TitleWin, UserName).
+    title_screen(TitleWin, UserName, Listener).
 
+listener() ->
+    receive
+        {GameRoom, players, NewPlayers} -> io:format("~p: ~p~n", [GameRoom, NewPlayers])
+    end.
+
+% paint_players(GameRoom, Players) ->
+%     receive
+%         %  -> paint_players(GameRoom, NewPlayers)
+%     end.
