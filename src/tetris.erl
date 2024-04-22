@@ -83,7 +83,7 @@ create_multi_room(UserName, Win) ->
     NumPlayers = get_num_players(NumPlayersMsg),
     case NumPlayers of
         0 -> title_screen_keyboard_loop(UserName, Win);
-        _ ->  GameRoom = server:create_room('t@vm-hw04.eecs.tufts.edu', RoomName, UserName, NumPlayers),
+        _ ->  GameRoom = server:create_room('t@vm-hw02.eecs.tufts.edu', RoomName, UserName, NumPlayers),
             case GameRoom of 
                 already_exists -> 
                     Msg = lists:append(["Room ", RoomName, " already exists!"]),
@@ -96,7 +96,7 @@ create_multi_room(UserName, Win) ->
 join_multi_room(UserName, Win) ->
     tetris_io:draw_title_screen(Win, ["Enter a room name:"]),
     RoomName = tetris_io:text_box(Win, 15, 14),
-    GameRoom = server:join_room('t@vm-hw04.eecs.tufts.edu', RoomName, UserName),
+    GameRoom = server:join_room('t@vm-hw02.eecs.tufts.edu', RoomName, UserName),
     case GameRoom of 
         room_full -> 
             Msg = lists:append(["Room ", RoomName, " is full, sorry :("]),
