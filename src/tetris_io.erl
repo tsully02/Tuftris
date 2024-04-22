@@ -232,26 +232,28 @@ draw_centered_message(Row, {WinY, WinX, WinWidth, WinHeight}, [Line | LineT]) ->
     cecho:mvaddstr(Row + WinY, ((WinWidth * 2) - string:length(Line)) div 2 + WinX, Line),
     draw_centered_message(Row + 1, {WinY, WinX, WinWidth, WinHeight}, LineT).
 
-animate_clear_row([], _, _) ->
+animate_clear_row(RowNums, Win, Length) -> animate_clear_row_r(RowNums, Win, Length, 0).
+
+animate_clear_row_r([], _, _, _) ->
     ok;
-animate_clear_row(RowNums, Win, 10) ->
+animate_clear_row_r(RowNums, Win, Length, Length) ->
     lists:foreach(fun (R) -> 
-        draw_square({R, 18}, Win, bg) end, RowNums),
+        draw_square({R, Length * 2 - 2}, Win, bg) end, RowNums),
     cecho:refresh();
-animate_clear_row(RowNums, Win, 0) ->
+animate_clear_row_r(RowNums, Win, Length, 0) ->
     lists:foreach(fun (R) -> 
         draw_square({R, 0}, Win, title) end, RowNums),
     cecho:refresh(),
     timer:sleep(40),
-    animate_clear_row(RowNums, Win, 1);
-animate_clear_row(RowNums, Win, Curr) ->
+    animate_clear_row_r(RowNums, Win, Length, 1);
+animate_clear_row_r(RowNums, Win, Length, Curr) ->
     lists:foreach(fun (R) -> 
         draw_square({R, (Curr - 1) * 2}, Win, bg) end, RowNums),
     lists:foreach(fun (R) -> 
         draw_square({R, Curr * 2}, Win, title) end, RowNums),
     cecho:refresh(),
     timer:sleep(40),
-    animate_clear_row(RowNums, Win, Curr + 1).
+    animate_clear_row_r(RowNums, Win, Length, Curr + 1).
 
 draw_title_screen({WinY, WinX, Width, Height}, CenteredMessage) ->
     TitleWin = {WinY, WinX, Width, Height},

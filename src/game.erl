@@ -48,6 +48,12 @@ send_message(Message, [{_, Head, _} | Tail], From) ->
     Head ! Message,
     send_message(Message, Tail, From).
 
+send_listener(Message, [{_, From, _} | Tail], From) ->
+    lists:foreach(fun ({_, _, Pid}) -> Pid ! Message end, Tail);
+send_listener(Message, [{_, _Head, Listener} | Tail], From) ->
+    Listener ! Message,
+    send_listener(Message, Tail, From).
+
 receive_players(Players, MaxPlayers, MaxPlayers) ->
     Players;
 receive_players(Players, MaxPlayers, NumPlayers) ->
@@ -102,8 +108,8 @@ receive_messages(Players, Rows, NumCurrPlayers) ->
             NewRows = check_rows(Players, ClearedRows, Rows, NumCurrPlayers),
             receive_messages(Players, NewRows, NumCurrPlayers);
         {placepiece, T, PInfo} ->
-            % io:format("Piece placed!~n"),
-            send_message({placepiece, PInfo, T}, Players, PInfo),
+            io:format("Piece placed!~n"),
+            send_listener({self(), placepiece, PInfo, T}, Players, PInfo),
             receive_messages(Players, Rows, NumCurrPlayers);
         {playerlost, _PInfo} ->
             NewNum = NumCurrPlayers - 1,

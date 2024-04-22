@@ -1,5 +1,4 @@
 -module(tetris).
-
 -include_lib("../cecho/include/cecho.hrl").
 -include_lib("tetris.hrl").
 
@@ -47,7 +46,7 @@ start_game(GameRoom, NumPlayers, Listener, ok) ->
     Listener ! draw,
     % tetris_io:draw_board(Board, Win),
     % tetris_io:draw_board(Board, Win),
-    Listener ! {self(), draw_tetromino, T},
+    Listener ! {self(), draw_tetromino, T, T},
     % tetris_io:draw_tetromino(T, Win),
     Listener ! {self(), draw_preview, Preview},
     % tetris_io:draw_preview(Preview, Win, bg),
@@ -94,7 +93,7 @@ create_multi_room(UserName, Win, Listener) ->
     NumPlayers = get_num_players(NumPlayersMsg),
     case NumPlayers of
         0 -> title_screen_keyboard_loop(UserName, Win, Listener);
-        _ ->  GameRoom = server:create_room('a@vm-hw01.eecs.tufts.edu', RoomName, UserName, NumPlayers, Listener),
+        _ ->  GameRoom = server:create_room('a@vm-hw05.eecs.tufts.edu', RoomName, UserName, NumPlayers, Listener),
             case GameRoom of 
                 already_exists -> 
                     Msg = lists:append(["Room ", RoomName, " already exists!"]),
@@ -107,7 +106,7 @@ create_multi_room(UserName, Win, Listener) ->
 join_multi_room(UserName, Win, Listener) ->
     tetris_io:draw_title_screen(Win, ["Enter a room name:"]),
     RoomName = tetris_io:text_box(Win, 15, 14),
-    GameInfo = server:join_room('a@vm-hw01.eecs.tufts.edu', RoomName, UserName, Listener),
+    GameInfo = server:join_room('a@vm-hw05.eecs.tufts.edu', RoomName, UserName, Listener),
     case GameInfo of 
         room_full -> 
             Msg = lists:append(["Room ", RoomName, " is full, sorry :("]),
@@ -139,7 +138,7 @@ receive_space(Msg) ->
 title_screen_keyboard_loop(UserName, Win, Listener) ->
     receive
         {_Pid, key, $1} -> 
-            GameRoom = server:create_room('a@vm-hw01.eecs.tufts.edu', UserName, UserName, 1, Listener),
+            GameRoom = server:create_room('a@vm-hw05.eecs.tufts.edu', UserName, UserName, 1, Listener),
             case GameRoom of 
                 already_exists -> 
                     Msg = "You are already playing a solo game! :P",
@@ -202,9 +201,12 @@ check_clear_row({Type, Rotation, Center, Cells}, Board, GameRoom) ->
             ok
     end.
 
-clear_row(Rows, Board, Listener) ->
-    NewBoard = lists:foldl(fun (R, CurrBoard) -> board:remove_row(CurrBoard, R) end, Board, Rows),
-    Listener ! {self(), clear_row, NewBoard, Rows},
+clear_board_rows(Rows, Board) ->
+    lists:foldl(fun (R, CurrBoard) -> board:remove_row(CurrBoard, R) end, Board, Rows).
+
+clear_row(Rows, Board, Listener, Tetromino) ->
+    NewBoard = clear_board_rows(Rows, Board),
+    Listener ! {self(), clear_row, NewBoard, Rows, Tetromino},
     receive
         {Listener, continue} -> ok
     end,
@@ -308,13 +310,13 @@ wait_for_input(Tetromino, Preview, Win, Board, TimerPid, GameRoom, Listener) ->
             end;
         {clearrow, Rows} -> 
             % io:format("row cleared~n"),
-            NewBoard = clear_row(Rows, Board, Listener),
+            NewBoard = clear_row(Rows, Board, Listener, Tetromino),
             % NewGhost = tetromino:get_ghost(Tetromino, NewBoard),
             % tetris_io:draw_ghost(NewGhost, Win, NewBoard),
             % tetris_io:draw_tetromino(Tetromino, Win),
             % Listener ! {self(), new_board, NewBoard},
-            Listener ! {self(), draw_tetromino, Tetromino, Tetromino},
-            cecho:refresh(),
+            % Listener ! {self(), draw_tetromino, Tetromino, Tetromino},
+            % cecho:refresh(),
             wait_for_input(Tetromino, Preview, Win, NewBoard, TimerPid, GameRoom, Listener);
         {newpiece, _PInfo, _T} -> 
             % io:format("Player ~p got a new piece!", [PInfo]),
@@ -376,17 +378,42 @@ listener(UserName) ->
             end,
             NewPlayers = lists:keydelete(UserName, 1, Players),
             Self = {lists:keyfind(UserName, 1, Players), Board},
-            PlayersList = lists:map(fun (Player) -> {Player, board:create(?BOARD_WIDTH, ?BOARD_HEIGHT, line)} end, NewPlayers),
+            PlayersList = lists:map(fun (Player) -> {Player, board:create(?BOARD_WIDTH, ?BOARD_HEIGHT, bg)} end, NewPlayers),
             % GameRoom ! {playerlist, PlayersList},
             paint_players(Self, Preview, PlayersList, Win, GameRoom)
     end.
+
+% PlayerNum start at 0 (first other player)
+get_player_win(PlayerNum, {Y, X, _, H}) ->
+    W = ?BOARD_WIDTH * 2,
+    {Y, X + W + 2 + (PlayerNum * W), W, H}.
 
 draw_boards(PlayersList, {Y, X, Width, Height}, GameRoom) ->
     lists:foldl(fun ({Player, Board}, Col) ->
                     tetris_io:draw_board(Board, {Y, Col, Width, Height}),
                     GameRoom ! {player, Player, col, Col},
                     Col + (?BOARD_WIDTH * 2)
-                end, X + 2, PlayersList).
+                end, X + (?BOARD_WIDTH * 2) + 2, PlayersList).
+
+get_board(Players, PlayerInfo) -> get_board_r(Players, PlayerInfo, 0).
+
+
+get_board_r([], _PlayerInfo, _Idx) -> {error, doesnotexist};
+get_board_r([{{_, PlayerPid, _}, Board} | _T], PlayerPid, Idx) -> 
+    {Idx, Board};
+get_board_r([_ | T], PlayerPid, Idx) ->
+    get_board_r(T, PlayerPid, Idx + 1).
+
+update_board([], _PlayerPid, _NewBoard) -> [];
+update_board([{PlayerInfo={_, PlayerPid, _}, _Board} | T], PlayerPid, NewBoard) -> 
+    [{PlayerInfo, NewBoard} | T];
+update_board([H | T], PlayerInfo, NewBoard) ->
+    [H | update_board(T, PlayerInfo, NewBoard)].
+
+clear_all_boards([], Rows) -> [];
+clear_all_boards([{Player, Board} | T], Rows) ->
+    [{Player, clear_board_rows(Rows, Board)} | clear_all_boards(T, Rows)].
+
 
 %%% 
 %%% Listener needs to:
@@ -409,14 +436,22 @@ paint_players(Self={{Name, Pid, Listener}, Board}, Preview, Players, Win, GameRo
             tetris_io:draw_board(NewBoard, Win),
             cecho:refresh(),
             paint_players(NewSelf, Preview, Players, Win, GameRoom);
-        {Pid, clear_row, NewBoard, Rows} ->
+        {Pid, clear_row, NewBoard, Rows, Tetromino} ->
             NewSelf = {Me, NewBoard},
-            tetris_io:animate_clear_row(Rows, Win, 0),
+            NewPlayers = clear_all_boards(Players, Rows),
+            FirstWin = get_player_win(0, Win),
+            tetris_io:animate_clear_row(Rows, Win, ?BOARD_WIDTH),
             tetris_io:draw_board(NewBoard, Win),
+            Ghost = tetromino:get_ghost(Tetromino, NewBoard),
+            tetris_io:draw_ghost(Ghost, Win, NewBoard),
+            tetris_io:draw_tetromino(Tetromino, Win),
+            cecho:refresh(),
+            tetris_io:animate_clear_row(Rows, FirstWin, ?BOARD_WIDTH * length(Players)),
+            draw_boards(NewPlayers, Win, GameRoom),
             % tetris_io:draw_board(NewBoard, Win),
             cecho:refresh(),
             Pid ! {self(), continue},
-            paint_players(NewSelf, Preview, Players, Win, GameRoom);
+            paint_players(NewSelf, Preview, NewPlayers, Win, GameRoom);
         {Pid, draw_tetromino, OldT, NewT} ->
             OldG = tetromino:get_ghost(OldT, Board),
             tetris_io:delete_tetromino(OldG, Win, Board),
@@ -429,14 +464,26 @@ paint_players(Self={{Name, Pid, Listener}, Board}, Preview, Players, Win, GameRo
             tetris_io:draw_preview(NewPreview, Win, bg),
             paint_players(Self, NewPreview, Players, Win, GameRoom);
         draw -> 
-            draw_boards([Self | Players], Win, GameRoom),
+            tetris_io:draw_board(Board, Win),
+            draw_boards(Players, Win, GameRoom),
             paint_players(Self, Preview, Players, Win, GameRoom);
+        {GameRoom, placepiece, PlayerPid, T} -> 
+            GameRoom ! {gotmessage, PlayerPid, placepiece},
+            {Idx, PlayerBoard} = get_board(Players, PlayerPid),
+            NewBoard = board:place_piece(PlayerBoard, T),
+            BoardWin = get_player_win(Idx, Win),
+            tetris_io:draw_board(NewBoard, BoardWin),
+            NewPlayers = update_board(Players, PlayerPid, NewBoard),
+            paint_players(Self, Preview, NewPlayers, Win, GameRoom);
         % {newpiece, Player, }
         {_RefreshPid, resize} ->
             NewWin = tetris_io:calc_game_win_coords(?BOARD_WIDTH, ?BOARD_HEIGHT),
             tetris_io:paint_screen(border),
             tetris_io:draw_preview(Preview, NewWin, bg),
             draw_boards([Self | Players], NewWin, GameRoom),
-            paint_players(Self, Preview, Players, NewWin, GameRoom)
+            paint_players(Self, Preview, Players, NewWin, GameRoom);
         % {newplayer, Player}  -> paint_players(Self, [Player | Players], Win, GameRoom)
+        Msg ->
+            GameRoom ! {unexpected_msg, self(), Msg},
+            paint_players(Self, Preview, Players, Win, GameRoom)
     end.
