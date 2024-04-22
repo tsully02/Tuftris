@@ -55,9 +55,6 @@ start_game(GameRoom) ->
 new_timer(Pid, Time) ->
     spawn(fun () -> timer(Pid, Time) end).
 
-new_timer(Pid, Time) ->
-    spawn(fun () -> timer(Pid, Time) end).
-
 wait_to_start() ->
     receive
         {_Pid, start} -> ok;
