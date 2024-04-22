@@ -29,7 +29,6 @@ init(ServerInfo, RoomName, NumPlayers, {PlayerName, PlayerPid, PlayerListener}) 
     io:format("~p ~p: ~p joined the game!~n", [RoomName, self(), PlayerName]),
     Players = receive_players([{PlayerName, PlayerPid, PlayerListener}], NumPlayers, 1),
     send_message_to_all_listeners({self(), players, Players}, Players),
-    timer:sleep(10000),
     send_message_to_all({self(), start}, Players),
     io:format("Num players: ~p~n", [length(Players)]),
     receive_messages(Players, lists:duplicate(?BOARD_HEIGHT, 0), length(Players)),
@@ -58,6 +57,7 @@ receive_players(Players, MaxPlayers, NumPlayers) ->
             % Player = {PlayerName, PlayerPid},
             Player = {PlayerName, PlayerPid, Listener},
             NewPlayers = [Player | Players],
+            send_message_to_all_listeners({newplayer, Player}, Players),
             receive_players(NewPlayers, MaxPlayers, NumPlayers + 1);
         M ->
             io:format("Bad message: ~p~n", [M]),

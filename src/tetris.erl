@@ -6,8 +6,8 @@
 -export([initiate/1, timer/2]).
 
 initiate(UserName) ->
+    Listener = spawn_link(fun () -> listener(UserName) end),
     {_KeyPid, RefreshPid, _MaxRow, _MaxCol} = tetris_io:init(),
-    Listener = spawn_link(fun () -> listener() end),
     % Num = add_horiz_line_c(30, 30, 11000, 1000),
     % io:format("~p~n", [Num]),
     % cecho:refresh(),
@@ -15,7 +15,7 @@ initiate(UserName) ->
     Status = start_screen(UserName, Listener),
     % Disable auto refresh during the game itself; leave it up to the main client process
     tetris_io:set_auto_refresh(RefreshPid, false),
-    tetris(Status).
+    tetris(Status, Listener).
 
 % add_horiz_line_c(_, _, 0, ColorNum) -> ColorNum;
 % add_horiz_line_c(Row, Col, Length, ColorNum) ->
@@ -24,16 +24,17 @@ initiate(UserName) ->
 %     cecho:mvaddch(Row, Col, $ ),
 %     add_horiz_line_c(Row, Col + 1, Length - 1, ColorNum + 1).
 
-tetris(quit) ->
+tetris(quit, _) ->
     tetris_io:stop();
-tetris({game, {GameRoom, NumPlayers}}) ->
+tetris({game, {GameRoom, NumPlayers}}, Listener) ->
     Players = wait_to_start([]),
-    start_game(GameRoom, NumPlayers).
+    start_game(GameRoom, NumPlayers, Listener).
 
-start_game(GameRoom, NumPlayers) ->
+start_game(GameRoom, NumPlayers, Listener) ->
     % io:format("LENGTH: ~p~n", [length(Players)]),
     % timer:sleep(2000),
-    Win = tetris_io:calc_game_win_coords(?BOARD_WIDTH * NumPlayers, ?BOARD_HEIGHT),
+    Win = tetris_io:calc_game_win_coords(?BOARD_WIDTH * NumPlayers + 2, ?BOARD_HEIGHT),
+    Listener ! {self(), window, Win},
     Board = board:create(?BOARD_WIDTH, ?BOARD_HEIGHT, ?BACKGROUND_COLOR),
     TimerPid = new_timer(self(), 1000),
     T = tetromino:generate({1, 5}, GameRoom),
@@ -346,12 +347,29 @@ start_screen(UserName, Listener) ->
     TitleWin = tetris_io:calc_game_win_coords(?TITLESCR_WIDTH, ?TITLESCR_HEIGHT),
     title_screen(TitleWin, UserName, Listener).
 
-listener() ->
+listener(UserName) ->
     receive
-        {GameRoom, players, NewPlayers} -> io:format("~p: ~p~n", [GameRoom, NewPlayers])
+        {GameRoom, players, Players} -> 
+            Win = receive
+                      {_Pid, window, Win} -> Win
+                  end,
+            NewPlayers = lists:keydelete(UserName, 1, Players),
+            io:format("~p: ~p~n", [GameRoom, NewPlayers])
     end.
+
+
+
+%%% 
+
+%%% 
+%%% Listener needs to:
+%%% initiate map of player pids to names/boards/windows
+%%%     - get message from GameRoom each time a player joins
+%%% receive messages for other players' placed pieces
+%%%     - then change that player's board
+%%% 
 
 % paint_players(GameRoom, Players) ->
 %     receive
-%         %  -> paint_players(GameRoom, NewPlayers)
+%         {newplayer, Player}  -> paint_players(GameRoom, [Player | Players])
 %     end.
