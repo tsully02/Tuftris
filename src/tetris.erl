@@ -15,6 +15,7 @@ initiate(UserName) ->
     Status = start_screen(UserName, Listener),
     % Disable auto refresh during the game itself; leave it up to the main client process
     tetris_io:set_auto_refresh(RefreshPid, false),
+    tetris_io:set_resize_recipient(RefreshPid, Listener),
     tetris(Status, Listener).
 
 % add_horiz_line_c(_, _, 0, ColorNum) -> ColorNum;
@@ -40,17 +41,17 @@ start_game(GameRoom, NumPlayers, Listener, ok) ->
     T = tetromino:generate({1, 5}, GameRoom),
     GameRoom ! {newpiece, T, self()},
     tetris_io:paint_screen(border),
-    Listener ! {self(), window, Win, board, Board},
-    Listener ! draw,
-    % tetris_io:draw_board(Board, Win),
-    % tetris_io:draw_board(Board, Win),
-    tetris_io:draw_tetromino(T, Win),
-    Ghost = get_ghost(T, Board),
     Preview = [tetromino:generate({1, 5}, GameRoom), tetromino:generate({1, 5}, GameRoom), tetromino:generate({1, 5}, GameRoom)],
-    tetris_io:draw_preview(Preview, Win, bg),
-    tetris_io:delete_tetromino(Ghost, Win, Board),
-    tetris_io:draw_ghost(Ghost, Win, Board),
-    wait_for_input(T, Ghost, Preview, Win, Board, TimerPid, GameRoom, Listener).
+    Listener ! {self(), winboardprev, Win, Board, Preview},
+    Listener ! {self(), draw},
+    % tetris_io:draw_board(Board, Win),
+    % tetris_io:draw_board(Board, Win),
+    Listener ! {self(), draw_tetromino, T},
+    % tetris_io:draw_tetromino(T, Win),
+    Listener ! {self(), draw_preview, Preview},
+    % tetris_io:draw_preview(Preview, Win, bg),
+    Listener ! {self(), draw_tetromino, T, T},
+    wait_for_input(T, Preview, Win, Board, TimerPid, GameRoom, Listener).
 
 new_timer(Pid, Time) ->
     spawn(fun () -> timer(Pid, Time) end).
@@ -92,7 +93,7 @@ create_multi_room(UserName, Win, Listener) ->
     NumPlayers = get_num_players(NumPlayersMsg),
     case NumPlayers of
         0 -> title_screen_keyboard_loop(UserName, Win, Listener);
-        _ ->  GameRoom = server:create_room('a@vm-hw05.eecs.tufts.edu', RoomName, UserName, NumPlayers, Listener),
+        _ ->  GameRoom = server:create_room('a@vm-hw01.eecs.tufts.edu', RoomName, UserName, NumPlayers, Listener),
             case GameRoom of 
                 already_exists -> 
                     Msg = lists:append(["Room ", RoomName, " already exists!"]),
@@ -105,7 +106,7 @@ create_multi_room(UserName, Win, Listener) ->
 join_multi_room(UserName, Win, Listener) ->
     tetris_io:draw_title_screen(Win, ["Enter a room name:"]),
     RoomName = tetris_io:text_box(Win, 15, 14),
-    GameInfo = server:join_room('a@vm-hw05.eecs.tufts.edu', RoomName, UserName, Listener),
+    GameInfo = server:join_room('a@vm-hw01.eecs.tufts.edu', RoomName, UserName, Listener),
     case GameInfo of 
         room_full -> 
             Msg = lists:append(["Room ", RoomName, " is full, sorry :("]),
@@ -137,7 +138,7 @@ receive_space(Msg) ->
 title_screen_keyboard_loop(UserName, Win, Listener) ->
     receive
         {_Pid, key, $1} -> 
-            GameRoom = server:create_room('a@vm-hw05.eecs.tufts.edu', UserName, UserName, 1, Listener),
+            GameRoom = server:create_room('a@vm-hw01.eecs.tufts.edu', UserName, UserName, 1, Listener),
             case GameRoom of 
                 already_exists -> 
                     Msg = "You are already playing a solo game! :P",
@@ -200,18 +201,15 @@ check_clear_row({Type, Rotation, Center, Cells}, Board, GameRoom) ->
             ok
     end.
 
-clear_row(Rows, Board, Win, Listener) ->
+clear_row(Rows, Board, Listener) ->
     NewBoard = lists:foldl(fun (R, CurrBoard) -> board:remove_row(CurrBoard, R) end, Board, Rows),
-    tetris_io:animate_clear_row(Rows, Win, 0),
-    Listener ! draw,
-    % tetris_io:draw_board(NewBoard, Win),
-    cecho:refresh(),
+    Listener ! {self(), clear_row, NewBoard, Rows},
+    receive
+        {Listener, continue} -> ok
+    end,
     NewBoard.
 
-get_ghost(Tetromino, Board) ->
-    tetromino:move_to_lowest_position(Tetromino, Board).
-
-process_key(Key, Tetromino, Ghost, Preview, Win, Board, TimerPid, GameRoom, Listener) -> 
+process_key(Key, Tetromino, Preview, Win, Board, TimerPid, GameRoom, Listener) -> 
     ResultTetromino = case Key of 
         % using q here instead of ?ceKEY_ESC because the latter seems to be slow
         ?ceKEY_UP ->
@@ -238,48 +236,53 @@ process_key(Key, Tetromino, Ghost, Preview, Win, Board, TimerPid, GameRoom, List
                 1 -> blockedOut();
                 _ ->
                     case Key of 
-                        ?ceKEY_DOWN -> NewBoard = board:place_piece(Board, Tetromino),
+                        ?ceKEY_DOWN -> 
+                            NewBoard = board:place_piece(Board, Tetromino),
+                            Listener ! {self(), new_board, NewBoard},
                             GameRoom ! {placepiece, Tetromino, self()},
-                            Listener ! draw,
+                            Listener ! {self(), draw},
                             % tetris_io:draw_board(NewBoard, Win),
                             TimerPid ! {self(), kill},
                             NewTimerPid = new_timer(self(), 1000),
                             check_clear_row(Tetromino, NewBoard, GameRoom),
                             {NewTetromino, NewPreview} = next_piece(Preview, GameRoom),
-                            tetris_io:draw_preview(NewPreview, Win, bg),
-                            NewGhost = get_ghost(NewTetromino, NewBoard),
-                            tetris_io:draw_ghost(NewGhost, Win, NewBoard),
-                            tetris_io:delete_tetromino(Tetromino, Win, NewBoard),
-                            tetris_io:draw_tetromino(NewTetromino, Win),
-                            {Win, NewTetromino, NewGhost, NewPreview, NewBoard, NewTimerPid};
-                        _ -> {Win, Tetromino, Ghost, Preview, Board, TimerPid}
+                            Listener ! {self(), draw_preview, NewPreview},
+                            % tetris_io:draw_preview(NewPreview, Win, bg),
+                        
+                            % tetris_io:delete_tetromino(Tetromino, Win, NewBoard),
+                            
+                            % tetris_io:draw_tetromino(NewTetromino, Win),
+                            Listener ! {self(), draw_tetromino, Tetromino, NewTetromino},
+                            {Win, NewTetromino, NewPreview, NewBoard, NewTimerPid};
+                        _ -> {Win, Tetromino, Preview, Board, TimerPid}
                     end
             end;
         false ->  % Redraw new tetromino and ghost
             case Key of 
                 ?KEY_SPACE -> 
                     tetris_io:delete_tetromino(Tetromino, Win, Board),
-                    process_key(?ceKEY_DOWN, NewT2, Ghost, Preview, Win, Board, TimerPid, GameRoom, Listener);
+                    process_key(?ceKEY_DOWN, NewT2, Preview, Win, Board, TimerPid, GameRoom, Listener);
                 _ -> 
-                    ResultGhost = get_ghost(NewT2, Board),
-                    tetris_io:delete_tetromino(Ghost, Win, Board),
-                    tetris_io:draw_ghost(ResultGhost, Win, Board),
-                    tetris_io:delete_tetromino(Tetromino, Win, Board),
-                    tetris_io:draw_tetromino(NewT2, Win),
-                    {Win, NewT2, ResultGhost, Preview, Board, TimerPid}
+                    % ResultGhost = tetromino:get_ghost(NewT2, Board),
+                    % tetris_io:delete_tetromino(Ghost, Win, Board),
+                    % tetris_io:draw_ghost(ResultGhost, Win, Board),
+                    % tetris_io:delete_tetromino(Tetromino, Win, Board),
+                    Listener ! {self(), draw_tetromino, Tetromino, NewT2},
+                    % tetris_io:draw_tetromino(NewT2, Win),
+                    {Win, NewT2, Preview, Board, TimerPid}
             end
     end.
 
-wait_for_input(Tetromino, Ghost, Preview, Win, Board, TimerPid, GameRoom, Listener) ->
+wait_for_input(Tetromino, Preview, Win, Board, TimerPid, GameRoom, Listener) ->
     % io:format("Timer: ~p~n", [TimerPid]),
     receive
         {TimerPid, timer} ->
-            case process_key(?ceKEY_DOWN, Tetromino, Ghost, Preview, Win, Board, TimerPid, GameRoom, Listener) of
+            case process_key(?ceKEY_DOWN, Tetromino, Preview, Win, Board, TimerPid, GameRoom, Listener) of
                 blocked -> 
                     GameRoom ! {playerlost, self()},
-                    wait_for_input(Tetromino, Ghost, Preview, Win, Board, TimerPid, GameRoom, Listener);
-                {NewWin, NewTetromino, NewGhost, NewPreview, NewBoard, NewTimerPid} ->
-                           wait_for_input(NewTetromino, NewGhost, NewPreview, NewWin, NewBoard, NewTimerPid, GameRoom, Listener)
+                    wait_for_input(Tetromino, Preview, Win, Board, TimerPid, GameRoom, Listener);
+                {NewWin, NewTetromino, NewPreview, NewBoard, NewTimerPid} ->
+                           wait_for_input(NewTetromino, NewPreview, NewWin, NewBoard, NewTimerPid, GameRoom, Listener)
             end;
         {GameRoom, game_over} ->
             tetris_io:stop(),
@@ -292,41 +295,46 @@ wait_for_input(Tetromino, Ghost, Preview, Win, Board, TimerPid, GameRoom, Listen
             ok;
         {_Pid, key, $l} -> 
             NewTetromino = tetromino:generate({1, 5}, line),
-            wait_for_input(NewTetromino, Ghost, Preview, Win, Board, TimerPid, GameRoom, Listener);
+            Listener ! {self(), draw_tetromino, Tetromino, NewTetromino},
+            wait_for_input(NewTetromino, Preview, Win, Board, TimerPid, GameRoom, Listener);
         {_Pid, key, Key} ->
-            case process_key(Key, Tetromino, Ghost, Preview, Win, Board, TimerPid, GameRoom, Listener) of
+            case process_key(Key, Tetromino, Preview, Win, Board, TimerPid, GameRoom, Listener) of
                 blocked -> 
                     GameRoom ! {playerlost, self()},
-                    wait_for_input(Tetromino, Ghost, Preview, Win, Board, TimerPid, GameRoom, Listener);
-                {NewWin, NewTetromino, NewGhost, NewPreview, NewBoard, NewTimerPid} ->
-                    wait_for_input(NewTetromino, NewGhost, NewPreview, NewWin, NewBoard, NewTimerPid, GameRoom, Listener)
+                    wait_for_input(Tetromino, Preview, Win, Board, TimerPid, GameRoom, Listener);
+                {NewWin, NewTetromino, NewPreview, NewBoard, NewTimerPid} ->
+                    wait_for_input(NewTetromino, NewPreview, NewWin, NewBoard, NewTimerPid, GameRoom, Listener)
             end;
         {clearrow, Rows} -> 
             % io:format("row cleared~n"),
-            NewBoard = clear_row(Rows, Board, Win, Listener),
-            NewGhost = get_ghost(Tetromino, NewBoard),
-            tetris_io:draw_ghost(NewGhost, Win, NewBoard),
-            tetris_io:draw_tetromino(Tetromino, Win),
+            NewBoard = clear_row(Rows, Board, Listener),
+            % NewGhost = tetromino:get_ghost(Tetromino, NewBoard),
+            % tetris_io:draw_ghost(NewGhost, Win, NewBoard),
+            % tetris_io:draw_tetromino(Tetromino, Win),
+            % Listener ! {self(), new_board, NewBoard},
+            Listener ! {self(), draw_tetromino, Tetromino, Tetromino},
             cecho:refresh(),
-            wait_for_input(Tetromino, NewGhost, Preview, Win, NewBoard, TimerPid, GameRoom, Listener);
+            wait_for_input(Tetromino, Preview, Win, NewBoard, TimerPid, GameRoom, Listener);
         {newpiece, _PInfo, _T} -> 
             % io:format("Player ~p got a new piece!", [PInfo]),
             % send message to pid that controls other player's boards???
-            wait_for_input(Tetromino, Ghost, Preview, Win, Board, TimerPid, GameRoom, Listener);
+            wait_for_input(Tetromino, Preview, Win, Board, TimerPid, GameRoom, Listener);
         {placepiece, _PInfo, _T} -> 
-            wait_for_input(Tetromino, Ghost, Preview, Win, Board, TimerPid, GameRoom, Listener);
+            wait_for_input(Tetromino, Preview, Win, Board, TimerPid, GameRoom, Listener);
         {_Pid, timer} ->
-            wait_for_input(Tetromino, Ghost, Preview, Win, Board, TimerPid, GameRoom, Listener);
+            wait_for_input(Tetromino, Preview, Win, Board, TimerPid, GameRoom, Listener);
         {_Pid, resize} ->
                     NewWin = tetris_io:calc_game_win_coords(?BOARD_WIDTH, ?BOARD_HEIGHT),
                     tetris_io:paint_screen(border),
                     Listener ! draw,
                     % tetris_io:draw_board(Board, NewWin),
-                    tetris_io:draw_preview(Preview, NewWin, bg),
-                    ResultGhost = get_ghost(Tetromino, Board),
-                    tetris_io:draw_ghost(ResultGhost, NewWin, Board),
-                    tetris_io:draw_tetromino(Tetromino, NewWin),
-                    wait_for_input(Tetromino, Ghost, Preview, NewWin, Board, TimerPid, GameRoom, Listener);
+                    Listener ! {self(), draw_preview, Preview},
+                    % tetris_io:draw_preview(Preview, NewWin, bg),
+                    % ResultGhost = tetromino:get_ghost(Tetromino, Board),
+                    % tetris_io:draw_ghost(ResultGhost, NewWin, Board),
+                    % tetris_io:draw_tetromino(Tetromino, NewWin),
+                    Listener ! {self(), draw_tetromino, Tetromino, Tetromino},
+                    wait_for_input(Tetromino, Preview, NewWin, Board, TimerPid, GameRoom, Listener);
 
         Other ->
             io:format("Client Unexpected msg: ~p~n", [Other])
@@ -347,7 +355,7 @@ timer(Pid, Time) ->
              timer(Pid, Time)
     end.
 
-% Implement BlockedOut behavior
+% TODO: Implement BlockedOut behavior
 blockedOut() ->
     blocked.
     
@@ -362,20 +370,17 @@ start_screen(UserName, Listener) ->
 listener(UserName) ->
     receive
         {GameRoom, players, Players} -> 
-            receive
-                {_Pid, window, Win, board, Board} -> {Win, Board}
+            {Win, Board, Preview} = receive
+                {_Pid, winboardprev, W, B, P} -> {W, B, P}
             end,
-            Self = {lists:keydelete(UserName, 1, Players), Board},
             NewPlayers = lists:keydelete(UserName, 1, Players),
+            Self = {lists:keyfind(UserName, 1, Players), Board},
             PlayersList = lists:map(fun (Player) -> {Player, board:create(?BOARD_WIDTH, ?BOARD_HEIGHT, line)} end, NewPlayers),
             % GameRoom ! {playerlist, PlayersList},
-            paint_players(Self, PlayersList, Win, GameRoom)
+            paint_players(Self, Preview, PlayersList, Win, GameRoom)
     end.
 
 draw_boards(PlayersList, {Y, X, Width, Height}, GameRoom) ->
-    % {_PInfo, Board} = Player,
-    % tetris_io:draw_tetromino({line, Player, {1, 1}, []}, {Y, X + ?BOARD_WIDTH + 10, Width, Height}).
-    % tetris_io:draw_board(Board, {Y, X + ?BOARD_WIDTH + 10, Width, Height}).
     lists:foldl(fun ({Player, Board}, Col) ->
                     tetris_io:draw_board(Board, {Y, Col, Width, Height}),
                     GameRoom ! {player, Player, col, Col},
@@ -383,20 +388,53 @@ draw_boards(PlayersList, {Y, X, Width, Height}, GameRoom) ->
                 end, X, PlayersList).
 
 %%% 
-
-%%% 
 %%% Listener needs to:
 %%% initiate map of player pids to names/boards/windows
 %%%     - get message from GameRoom each time a player joins
 %%% receive messages for other players' placed pieces
 %%%     - then change that player's board
-%%% 
+%%%fdd
 
-paint_players(Self, Players, Win, GameRoom) ->
+paint_players(Self={{Name, Pid, Listener}, Board}, Preview, Players, Win, GameRoom) ->
+    % Self = {{_Name, Pid, _Listener}, Board},
+    Me = {Name, Pid, Listener},
     receive
         {lebron, jamie} -> ok; % Goated with house sauce, kid perhaps
-        draw -> draw_boards([Self | Players], Win, GameRoom);
-            % change to draw_self and draw_all
-            
-        {newplayer, Player}  -> paint_players(Self, [Player | Players], Win, GameRoom)
+        {Pid, draw} ->
+            tetris_io:draw_board(Board, Win),
+            paint_players(Self, Preview, Players, Win, GameRoom);
+        {Pid, new_board, NewBoard} -> 
+            NewSelf = {Me, NewBoard},
+            tetris_io:draw_board(NewBoard, Win),
+            cecho:refresh(),
+            paint_players(NewSelf, Preview, Players, Win, GameRoom);
+        {Pid, clear_row, NewBoard, Rows} ->
+            NewSelf = {Me, NewBoard},
+            tetris_io:animate_clear_row(Rows, Win, 0),
+            tetris_io:draw_board(NewBoard, Win),
+            % tetris_io:draw_board(NewBoard, Win),
+            cecho:refresh(),
+            Pid ! {self(), continue},
+            paint_players(NewSelf, Preview, Players, Win, GameRoom);
+        {Pid, draw_tetromino, OldT, NewT} ->
+            OldG = tetromino:get_ghost(OldT, Board),
+            tetris_io:delete_tetromino(OldG, Win, Board),
+            tetris_io:delete_tetromino(OldT, Win, Board),
+            NewG = tetromino:get_ghost(NewT, Board),
+            tetris_io:draw_ghost(NewG, Win, Board),
+            tetris_io:draw_tetromino(NewT, Win),
+            paint_players(Self, Preview, Players, Win, GameRoom);
+        {Pid, draw_preview, NewPreview} ->
+            tetris_io:draw_preview(NewPreview, Win, bg),
+            paint_players(Self, NewPreview, Players, Win, GameRoom);
+        draw -> 
+            draw_boards([Self | Players], Win, GameRoom),
+            paint_players(Self, Preview, Players, Win, GameRoom);
+        {_RefreshPid, resize} ->
+            NewWin = tetris_io:calc_game_win_coords(?BOARD_WIDTH, ?BOARD_HEIGHT),
+            tetris_io:paint_screen(border),
+            tetris_io:draw_preview(Preview, NewWin, bg),
+            draw_boards([Self | Players], NewWin, GameRoom),
+            paint_players(Self, Preview, Players, NewWin, GameRoom)
+        % {newplayer, Player}  -> paint_players(Self, [Player | Players], Win, GameRoom)
     end.

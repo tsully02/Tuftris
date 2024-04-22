@@ -3,7 +3,7 @@
 -include_lib("../cecho/include/cecho.hrl").
 -include_lib("tetris.hrl").
 
--export([init/0, stop/0, spawn_keyboard_proc/0, set_auto_refresh/2, calc_game_win_coords/2, draw_board/2, draw_tetromino/2, delete_tetromino/3, draw_title_screen/2, draw_ghost/3, text_box/3]).
+-export([init/0, stop/0, spawn_keyboard_proc/0, set_auto_refresh/2, set_resize_recipient/2, calc_game_win_coords/2, draw_board/2, draw_tetromino/2, delete_tetromino/3, draw_title_screen/2, draw_ghost/3, text_box/3]).
 -export([animate_clear_row/3, paint_screen/1, draw_preview/3]).
 
 init() ->
@@ -52,7 +52,8 @@ keyboard_loop(Client_Pid) ->
 refresh_loop(MainPid, {MaxY, MaxX}, AutoRefresh) ->
     receive
         {autorefresh, NewAutoRefresh} -> refresh_loop(MainPid, {MaxY, MaxX},
-                                                      NewAutoRefresh)
+                                                      NewAutoRefresh);
+        {setrecipient, Recipient} -> refresh_loop(Recipient, {MaxY, MaxX}, AutoRefresh)
     after 1000 ->
         case AutoRefresh of
             true -> cecho:refresh();
@@ -77,6 +78,9 @@ spawn_refresh_proc() ->
 % Configure auto refresh, i.e. whether the refresh proc calls cecho:refresh itself or leaves it up to another proc
 set_auto_refresh(RefreshPid, Enable) ->
     RefreshPid ! {autorefresh, Enable}.
+
+set_resize_recipient(RefreshPid, Recipient) ->
+    RefreshPid ! {setrecipient, Recipient}.
 
 draw_tetris_square({Row, Col}, {WinY, WinX, _, _}) ->
     cecho:mvaddstr(Row + WinY, Col + WinX, "[]"), ok.   

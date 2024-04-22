@@ -19,11 +19,11 @@
 %%%===================================================================
 
 % begins the server so clients and users can create rooms and add chat!
--spec start_link() -> pid().
+% -spec start_link() -> pid().
 start_link() -> gen_server:start_link({local, tetris}, ?MODULE, [], []).
 
 % stops the server, terminating all client processes
--spec stop() -> ok.
+% -spec stop() -> ok.
 stop() -> gen_server:stop(tetris).
 
 %%%===================================================================
@@ -31,7 +31,7 @@ stop() -> gen_server:stop(tetris).
 %%%===================================================================
 
 % initializes the state of the server
--spec init(list()) -> tuple().
+% -spec init(list()) -> tuple().
 init(_Args) -> {ok, []}.
 
 %%%
@@ -41,7 +41,7 @@ init(_Args) -> {ok, []}.
 
 
 % manages the calls sent to the gen_server, generating replies
--spec handle_call(term(), pid(), list()) -> ok.
+% -spec handle_call(term(), pid(), list()) -> ok.
 
 %%% 
 %%% Player = {Name, {Pid, Node}}

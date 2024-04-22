@@ -2,7 +2,7 @@
 
 -include_lib("tetris.hrl").
 
--export([get_all_coords/1, get_abs_coords/1, rotate/2, generate/2, check_bounds/1, type/1, check_collision/2, move_left/1, move_right/1, move_down/1, move_to_lowest_position/2, change_center/2]).
+-export([get_all_coords/1, get_abs_coords/1, rotate/2, generate/2, check_bounds/1, type/1, check_collision/2, move_left/1, move_right/1, move_down/1, move_to_lowest_position/2, get_ghost/2, change_center/2]).
 
 
 % Convert a tetromino to a list of board coordinates it takes up
@@ -130,3 +130,6 @@ move_to_lowest_position(Tetromino, Board) ->
         true -> Tetromino;
         false -> move_to_lowest_position(DownTetromino, Board)
     end.
+
+get_ghost(Tetromino, Board) ->
+    tetromino:move_to_lowest_position(Tetromino, Board).
