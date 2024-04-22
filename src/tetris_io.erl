@@ -76,7 +76,7 @@ spawn_refresh_proc() ->
 
 % Configure auto refresh, i.e. whether the refresh proc calls cecho:refresh itself or leaves it up to another proc
 set_auto_refresh(RefreshPid, Enable) ->
-    RefreshPid ! {autorefresh, Enable}
+    RefreshPid ! {autorefresh, Enable}.
 
 draw_tetris_square({Row, Col}, {WinY, WinX, _, _}) ->
     cecho:mvaddstr(Row + WinY, Col + WinX, "[]"), ok.   
@@ -109,7 +109,7 @@ draw_tetromino({Type, _Rotation, {CenterRow, CenterCol}, Cells}, Win) ->
     lists:foreach(fun ({R, C}) -> draw_tetris_square({R + CenterRow, C * 2 + CenterCol * 2}, Win) end, Cells),
     cecho:refresh().
 
-draw_ghost({Type, _Rotation, {CenterRow, CenterCol}, Cells}, Win, Board) ->
+draw_ghost({Type, _Rotation, {CenterRow, CenterCol}, Cells}, Win, _Board) ->
     T = {Type, _Rotation, {CenterRow, CenterCol}, Cells},
     Coords = tetromino:get_all_coords(T),
     set_color(ghost),
