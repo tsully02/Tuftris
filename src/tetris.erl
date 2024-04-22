@@ -396,6 +396,7 @@ paint_players(Self, Players, Win, GameRoom) ->
     receive
         {lebron, jamie} -> ok; % Goated with house sauce, kid perhaps
         draw -> draw_boards([Self | Players], Win, GameRoom);
+            % change to draw_self and draw_all
             
         {newplayer, Player}  -> paint_players(Self, [Player | Players], Win, GameRoom)
     end.
