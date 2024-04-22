@@ -28,7 +28,7 @@
 init(ServerInfo, RoomName, NumPlayers, {PlayerName, PlayerPid}) -> 
     io:format("~p ~p: ~p joined the game!~n", [RoomName, self(), PlayerName]),
     Players = receive_players([{PlayerName, PlayerPid}], NumPlayers, 1),
-    % Listener = spawn(fun () -> receive_messages(Players) end),
+    send_message_to_all({self(), players, Players}, Players),
     send_message_to_all({self(), start}, Players),
     io:format("Num players: ~p~n", [length(Players)]),
     receive_messages(Players, lists:duplicate(?BOARD_HEIGHT, 0), length(Players)),

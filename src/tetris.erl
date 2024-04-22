@@ -12,31 +12,25 @@ initiate(UserName) ->
     % cecho:refresh(),
     % receive_space("ope"),
     Status = start_screen(UserName),
-    RefreshPid ! {autorefresh, false},
+    % Disable auto refresh during the game itself; leave it up to the main client process
+    tetris_io:set_auto_refresh(RefreshPid, false),
     tetris(Status).
 
-add_horiz_line_c(_, _, 0, ColorNum) -> ColorNum;
-add_horiz_line_c(Row, Col, Length, ColorNum) ->
-    cecho:init_pair(ColorNum, ?ceCOLOR_BLACK, ColorNum),
-    cecho:attron(?ceCOLOR_PAIR(ColorNum)),
-    cecho:mvaddch(Row, Col, $ ),
-    add_horiz_line_c(Row, Col + 1, Length - 1, ColorNum + 1).
+% add_horiz_line_c(_, _, 0, ColorNum) -> ColorNum;
+% add_horiz_line_c(Row, Col, Length, ColorNum) ->
+%     cecho:init_pair(ColorNum, ?ceCOLOR_BLACK, ColorNum),
+%     cecho:attron(?ceCOLOR_PAIR(ColorNum)),
+%     cecho:mvaddch(Row, Col, $ ),
+%     add_horiz_line_c(Row, Col + 1, Length - 1, ColorNum + 1).
 
 tetris(quit) ->
     tetris_io:stop();
-% tetris(tboxtest) ->
-%     Win = tetris_io:calc_game_win_coords(?TITLESCR_WIDTH, ?TITLESCR_HEIGHT),
-%     Input = tetris_io:text_box(Win, 15, 10),
-%     io:format("~s", [Input]),
-%     timer:sleep(2000),
-%     tetris_io:stop();
-% % tetris({multi, GameRoom}) ->
 tetris({game, GameRoom}) ->
-    wait_to_start(),
-    start_game(GameRoom).
+    Players = wait_to_start([]),
+    start_game(Players, GameRoom).
 
-start_game(GameRoom) ->
-    Win = tetris_io:calc_game_win_coords(?BOARD_WIDTH, ?BOARD_HEIGHT),
+start_game(Players, GameRoom) ->
+    Win = tetris_io:calc_game_win_coords(?BOARD_WIDTH * length(Players), ?BOARD_HEIGHT),
     Board = board:create(?BOARD_WIDTH, ?BOARD_HEIGHT, ?BACKGROUND_COLOR),
     TimerPid = new_timer(self(), 1000),
     T = tetromino:generate({1, 5}, GameRoom),
@@ -55,10 +49,11 @@ start_game(GameRoom) ->
 new_timer(Pid, Time) ->
     spawn(fun () -> timer(Pid, Time) end).
 
-wait_to_start() ->
+wait_to_start(Players) ->
     receive
-        {_Pid, start} -> ok;
-        _ -> wait_to_start()
+        {_Pid, players, P} -> wait_to_start(P);
+        {_Pid, start} -> Players;
+        _ -> wait_to_start(Players)
     end.
 
 title_screen(Win, UserName) ->
