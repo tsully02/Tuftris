@@ -25,12 +25,14 @@ initiate(UserName) ->
 
 tetris(quit) ->
     tetris_io:stop();
-tetris({game, GameRoom}) ->
+tetris({game, {GameRoom, NumPlayers}}) ->
     Players = wait_to_start([]),
-    start_game(Players, GameRoom).
+    start_game(GameRoom, NumPlayers).
 
-start_game(Players, GameRoom) ->
-    Win = tetris_io:calc_game_win_coords(?BOARD_WIDTH * length(Players), ?BOARD_HEIGHT),
+start_game(GameRoom, NumPlayers) ->
+    % io:format("LENGTH: ~p~n", [length(Players)]),
+    % timer:sleep(2000),
+    Win = tetris_io:calc_game_win_coords(?BOARD_WIDTH * NumPlayers, ?BOARD_HEIGHT),
     Board = board:create(?BOARD_WIDTH, ?BOARD_HEIGHT, ?BACKGROUND_COLOR),
     TimerPid = new_timer(self(), 1000),
     T = tetromino:generate({1, 5}, GameRoom),
@@ -89,15 +91,15 @@ create_multi_room(UserName, Win) ->
                     Msg = lists:append(["Room ", RoomName, " already exists!"]),
                     error_title(Win, Msg),
                     title_screen_keyboard_loop(UserName, Win);
-                _ -> {game, GameRoom}
+                _ -> {game, {GameRoom, NumPlayers}}
             end
     end.
 
 join_multi_room(UserName, Win) ->
     tetris_io:draw_title_screen(Win, ["Enter a room name:"]),
     RoomName = tetris_io:text_box(Win, 15, 14),
-    GameRoom = server:join_room('t@vm-hw02.eecs.tufts.edu', RoomName, UserName),
-    case GameRoom of 
+    GameInfo = server:join_room('t@vm-hw02.eecs.tufts.edu', RoomName, UserName),
+    case GameInfo of 
         room_full -> 
             Msg = lists:append(["Room ", RoomName, " is full, sorry :("]),
             error_title(Win, Msg),
@@ -106,12 +108,13 @@ join_multi_room(UserName, Win) ->
             Msg = lists:append(["Room ", RoomName, " does not exist!"]),
             error_title(Win, Msg),
             title_screen_keyboard_loop(UserName, Win);
-        _ -> {game, GameRoom}
+        _ -> {game, GameInfo}
     end.
 
-error_title(Win, Msg) -> 
-    tetris_io:draw_title_screen(Win, [Msg, "Press [Space] to continue"]),
-    receive_space(Msg),
+error_title(Win, Msg) ->
+    FullMsg = [Msg, "Press [Space] to continue"],
+    tetris_io:draw_title_screen(Win, FullMsg),
+    receive_space(FullMsg),
     tetris_io:draw_title_screen(Win, ?TITLE_MSG).
 
 receive_space(Msg) -> 
@@ -133,7 +136,7 @@ title_screen_keyboard_loop(UserName, Win) ->
                     Msg = "You are already playing a solo game! :P",
                     error_title(Win, Msg),
                     title_screen_keyboard_loop(UserName, Win);
-                _ -> {game, GameRoom}
+                _ -> {game, {GameRoom, 1}}
             end;
         {_Pid, key, $2} -> 
             % io:format("messaging server...~n"),

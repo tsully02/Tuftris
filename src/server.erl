@@ -66,7 +66,7 @@ handle_call({joinroom, RoomName, Player}, _From, State) ->
                 NumPlayers -> {reply, room_full, State};
                 _ -> 
                     NewState = add_player(RoomName, Player, State),
-                    {reply, RoomInfo, NewState}
+                    {reply, {RoomInfo, NumPlayers}, NewState}
             end
     end;
 handle_call({delete, RoomName}, _From, State) ->
@@ -132,10 +132,11 @@ terminate(_Reason, _State) ->
 join_room(Node, RoomName, Name) ->
     Server = {tetris, Node},
     Player = {Name, self()},
-    Pid = gen_server:call(Server, {joinroom, RoomName, {Name, self()}}),
+    {Pid, NumPlayers} = gen_server:call(Server, {joinroom, RoomName, {Name, self()}}),
     case Pid of
         Err when Err == room_full; Err == no_such_room -> Err;
-        _ -> Pid ! {join_room, Player}, Pid
+        _ -> Pid ! {join_room, Player},
+             {Pid, NumPlayers}
     end.
 
 create_room(Node, RoomName, Name, NumPlayers) -> 

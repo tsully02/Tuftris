@@ -89,6 +89,7 @@ draw_square({Row, Col}, {WinY, WinX, _, _}, Color) ->
 %%% 
 %%% 
 calc_game_win_coords(Width, Height) ->
+    % io:format("Width: ~p~n", [Width]),
     {MaxRow, MaxCol} = cecho:getmaxyx(),
     BeginX = (MaxCol - Width * 2) div 2,
     BeginY = (MaxRow - Height) div 2,
