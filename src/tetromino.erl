@@ -16,7 +16,7 @@ get_abs_coords({_Type, _Rotation, {CRow, CCol}, Cells}) ->
     WinCells = lists:map(fun ({Row, Col}) -> {CRow + Row, CCol + Col * 2} end, Cells),
     [{CRow, CCol} | WinCells].
 
-change_center({Type, Rotation, {CRow, CCol}, Cells}, {NewR, NewC}) ->
+change_center({Type, Rotation, _, Cells}, {NewR, NewC}) ->
     {Type, Rotation, {NewR, NewC}, Cells}.
 
 type(Piece) -> element(1, Piece).

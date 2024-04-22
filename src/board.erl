@@ -7,9 +7,9 @@
 
 -export([create/3, get_color/3, is_filled/3, place_piece/2, remove_row/2, get_row/2]).
 
-create(Width, Height, _Color) ->
+create(Width, Height, Color) ->
     List = list_of_arrays(Height, [], Width),
-    lists:map(fun (Arr) -> array:map(fun (_, _) -> {false, bg} end, Arr) end, List).
+    lists:map(fun (Arr) -> array:map(fun (_, _) -> {false, Color} end, Arr) end, List).
 
 list_of_arrays(0, List, _ArrLen) -> List;
 list_of_arrays(LLen, List, ArrLen) ->

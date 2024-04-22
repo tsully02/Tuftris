@@ -57,7 +57,6 @@ receive_players(Players, MaxPlayers, NumPlayers) ->
             % Player = {PlayerName, PlayerPid},
             Player = {PlayerName, PlayerPid, Listener},
             NewPlayers = [Player | Players],
-            send_message_to_all_listeners({newplayer, Player}, Players),
             receive_players(NewPlayers, MaxPlayers, NumPlayers + 1);
         M ->
             io:format("Bad message: ~p~n", [M]),
