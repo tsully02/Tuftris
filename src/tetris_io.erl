@@ -4,7 +4,7 @@
 -include_lib("tetris.hrl").
 
 -export([init/0, stop/0, spawn_keyboard_proc/0, calc_game_win_coords/2, draw_board/2, draw_tetromino/2, delete_tetromino/3, draw_title_screen/2, draw_ghost/3, text_box/3]).
--export([animate_clear_row/3, paint_screen/1]).
+-export([animate_clear_row/3, paint_screen/1, draw_preview/3]).
 
 init() ->
     application:start(cecho),
@@ -31,17 +31,9 @@ init() ->
     % BACKGROUND COLOR 235!!
     %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-    cecho:move(0, 0),
-    cecho:addch($@),
-    cecho:move(MaxRow-1, 0),
-    cecho:addch($@),
-    cecho:move(0, MaxCol-1),
-    cecho:addch($@),
-    cecho:move(MaxRow-1, MaxCol-1),
-    cecho:addch($@),
-
     KeyPid = spawn_keyboard_proc(),
-    {KeyPid, MaxRow, MaxCol}.
+    RefreshPid = spawn_refresh_proc(),
+    {KeyPid, RefreshPid, MaxRow, MaxCol}.
 
 stop() ->
     application:stop(cecho).
@@ -55,11 +47,32 @@ keyboard_loop(Client_Pid) ->
         %     ok;
         _ -> 
             keyboard_loop(Client_Pid)
-    end. 
+    end.
+
+refresh_loop(MainPid, {MaxY, MaxX}, AutoRefresh) ->
+    receive
+        {autorefresh, NewAutoRefresh} -> refresh_loop(MainPid, {MaxY, MaxX},
+                                                      NewAutoRefresh)
+    after 1000 ->
+        case AutoRefresh of
+            true -> cecho:refresh();
+            _ -> ok
+        end,
+        {NewMaxY, NewMaxX} = cecho:getmaxyx(),
+        case {NewMaxY, NewMaxX} of
+            {MaxY, MaxX} -> ok;
+            _ -> MainPid ! {self(), resize}
+        end,
+        refresh_loop(MainPid, {NewMaxY, NewMaxX}, AutoRefresh)
+    end.
 
 spawn_keyboard_proc() ->
     Client = self(),
     spawn_link(fun () -> keyboard_loop(Client) end).
+
+spawn_refresh_proc() ->
+    Client = self(),
+    spawn_link(fun () -> refresh_loop(Client, cecho:getmaxyx(), true) end).
 
 draw_tetris_square({Row, Col}, {WinY, WinX, _, _}) ->
     cecho:mvaddstr(Row + WinY, Col + WinX, "[]"), ok.   
@@ -95,8 +108,8 @@ draw_tetromino({Type, _Rotation, {CenterRow, CenterCol}, Cells}, Win) ->
 draw_ghost({Type, _Rotation, {CenterRow, CenterCol}, Cells}, Win, Board) ->
     T = {Type, _Rotation, {CenterRow, CenterCol}, Cells},
     Coords = tetromino:get_all_coords(T),
+    set_color(ghost),
     lists:foreach(fun ({R, C}) -> 
-                        set_color(board:get_color(Board, R, C)),
                         draw_tetris_square({R, C * 2}, Win) end, Coords),
     cecho:refresh().
 
@@ -121,10 +134,37 @@ delete_tetromino({_Type, _Rotation, {CenterRow, CenterCol}, Cells}, Win, Board) 
     lists:foreach(fun ({R, C}) -> 
         draw_square({R + CenterRow, (C + CenterCol) * 2}, Win, board:get_color(Board, R + CenterRow, C + CenterCol)) end, Cells).
 
+paint_box(Coord, Width, Height) -> 
+    % io:format("coord: ~p~n", [Coord]),
+    Spaces = lists:duplicate(Width, ?KEY_SPACE),
+    List = lists:duplicate(Height, 10),
+    lists:foldl(fun (_, {Row, Col}) -> cecho:mvaddstr(Row, Col, Spaces), {Row + 1, Col} end, Coord, List).
+
+draw_preview(Preview, Win, Color) ->
+    set_color(Color),
+    {RowW, ColW, _, _} = Win,
+    {Row, Col} = {RowW + 10, ColW - 11},
+    paint_box({Row, Col}, 10, 10),
+    MidC = Col + 4,
+    lists:foldl(fun (P, R) -> 
+                    Type = tetromino:type(P),
+                    set_color(Type),
+                    NewC = case Type of 
+                        T when T == line; T == square -> MidC + 1;
+                        _ -> MidC
+                    end,
+                    Coords = tetromino:get_abs_coords(tetromino:change_center(P, {R, NewC})),
+                    lists:foreach(fun (Coord) -> draw_tetris_square_abs(Coord) end, Coords),
+                    R + 3
+                  end, Row + 2, Preview).
+
+draw_tetris_square_abs({Row, Col}) ->
+    cecho:mvaddstr(Row, Col, "[]"), ok.  
 
 % set color for each piece before printing, based on piece type
 set_color(Type) ->
     Color = case Type of 
+        ghost -> ?GHOST_COLOR;
         t -> ?T_COLOR; % PURPLE
         square -> ?SQUARE_COLOR; % YELLOW
         left -> ?LEFT_COLOR; % ORANGE
@@ -133,6 +173,7 @@ set_color(Type) ->
         zags -> ?ZAGS_COLOR;
         line -> ?LINE_COLOR;
         bg   -> ?BACKGROUND_COLOR;  % Should this be ?BACKGROUND_COLOR
+        border -> ?BORDER_COLOR;
         scrbg -> 11;
         title -> 7;
         logo -> 10
@@ -163,7 +204,9 @@ pair_creation() ->
     ok = cecho:init_pair(203, ?ceCOLOR_BLACK, 203), % ORANGE
     ok = cecho:init_pair(92, ?ceCOLOR_BLACK, 92), % PURPLE
     ok = cecho:init_pair(?BACKGROUND_COLOR, ?ceCOLOR_BLACK, ?BACKGROUND_COLOR), % BACKGROUND
-    ok = cecho:init_pair(39, ?ceCOLOR_BLACK, 39). % BACKGROUND
+    ok = cecho:init_pair(39, ?ceCOLOR_BLACK, 39), % BACKGROUND
+    ok = cecho:init_pair(?BORDER_COLOR, ?ceCOLOR_BLACK, ?BORDER_COLOR),
+    ok = cecho:init_pair(?GHOST_COLOR, ?ceCOLOR_WHITE, ?BACKGROUND_COLOR).
 
 
 paint_screen(ColorType) ->
@@ -173,7 +216,6 @@ paint_screen(ColorType) ->
     XYCoords = [{X,Y} || X <- XCoords, Y <- YCoords],
     lists:foreach(fun ({Col, Row}) -> draw_square({Row, Col}, {0, 0, MaxCol, MaxRow}, ColorType) end, XYCoords),
     cecho:refresh().
-
 
 draw_centered_message(_, _, []) ->
     ok;

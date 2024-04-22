@@ -77,9 +77,9 @@ handle_call({delete, RoomName}, _From, State) ->
 
 delete_room(_, []) -> [];
 delete_room(RoomName, [{RoomName, _, _, _} | T]) ->
-    T;
+    delete_room(RoomName, T);
 delete_room(RoomName, [H | T]) ->
-    [H | delete_room(T, RoomName)].
+    [H | delete_room(RoomName, T)].
 
 is_room(RoomName, State) ->
     lists:any(fun ({Room, _, _, _}) -> equal(Room, RoomName) end, State).

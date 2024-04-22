@@ -32,6 +32,7 @@ init(ServerInfo, RoomName, NumPlayers, {PlayerName, PlayerPid}) ->
     send_message_to_all({self(), start}, Players),
     io:format("Num players: ~p~n", [length(Players)]),
     receive_messages(Players, lists:duplicate(?BOARD_HEIGHT, 0), length(Players)),
+    send_message_to_all({self(), game_over}, Players),
     server:game_over(ServerInfo, RoomName),
     ok.
 

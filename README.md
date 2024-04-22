@@ -89,3 +89,41 @@ Commented out code:
 % T3 = rotate_tetromino_clock(T2),
 % draw_tetromino(T3),
 % cecho:refresh(),
+
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%% CHANGES THAT AMELIA AND TREVOR MADE:
+%%% 
+%%% We added a board data structure, which is a 2D array of tuples:
+%%% 
+%%%     {Boolean, Color}
+%%% 
+%%% Where Boolean indicates if a placed block is in that cell, and Color is the 
+%%% color of that cell. 
+%%% 
+%%% We changed everything that uses coordinates so that everything that (will 
+%%% eventually) live in the io file multiplies column coordinates by 2. That 
+%%% way, the indexing of cells is normal in the client and server, and the IO 
+%%% module is the only module that knows that cells are actually 2 wide. The 
+%%% macros have been changed accordingly, and the Board data structure is 
+%%% indexed like this. 
+%%% 
+%%% We also generate piece at the top of the board. We also changed it so that 
+%%% the piece coordinates are relative to the board, so all drawing functions 
+%%% have the Window passed in. 
+%%% 
+%%% Next steps:
+%%%     1. Add getters for elements in the board data structure (maybe make a
+%%%         new module?) (DONE)
+%%%     2. Pass in board to delete_tetromino so we can get the correct 
+%%%         background color (DONE)
+%%%     3. Add bounds checking for the board (DONE)
+%%% 
+%%% New Next Steps:
+%%%     0. Add board abstractions
+%%%     1. Add block placing (bottom of the board)
+%%%     2. Add bounds checking for other blocks
+%%%     3. Add falling
+%%%     4. Add block placing (on other blocks)
+%%% 
+%%% 

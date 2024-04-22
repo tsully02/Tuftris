@@ -2,13 +2,24 @@
 
 -include_lib("tetris.hrl").
 
--export([get_all_coords/1, rotate/2, generate/4, check_bounds/1, check_collision/2, move_left/1, move_right/1, move_down/1, move_to_lowest_position/2]).
+-export([get_all_coords/1, get_abs_coords/1, rotate/2, generate/2, check_bounds/1, type/1, check_collision/2, move_left/1, move_right/1, move_down/1, move_to_lowest_position/2, change_center/2]).
 
 
 % Convert a tetromino to a list of board coordinates it takes up
 get_all_coords({_Type, _Rotation, {CRow, CCol}, Cells}) ->
+    % io:format("CRow: ~p, CCol: ~p~n", [CRow, CCol]),
     WinCells = lists:map(fun ({Row, Col}) -> {CRow + Row, CCol + Col} end, Cells),
     [{CRow, CCol} | WinCells].
+
+get_abs_coords({_Type, _Rotation, {CRow, CCol}, Cells}) ->
+    % io:format("CRow: ~p, CCol: ~p~n", [CRow, CCol]),
+    WinCells = lists:map(fun ({Row, Col}) -> {CRow + Row, CCol + Col * 2} end, Cells),
+    [{CRow, CCol} | WinCells].
+
+change_center({Type, Rotation, {CRow, CCol}, Cells}, {NewR, NewC}) ->
+    {Type, Rotation, {NewR, NewC}, Cells}.
+
+type(Piece) -> element(1, Piece).
 
 
 %%% generate(Pid, Time, {Row, Col})
@@ -16,28 +27,14 @@ get_all_coords({_Type, _Rotation, {CRow, CCol}, Cells}) ->
 %%% TODO: Make less random :)
 %%% 
 %%% the double code this is temporary i swear...
-generate(Pid, Time, {Row, Col}, line) ->
-    TimerPid = spawn(fun () -> tetris:timer(Pid, Time) end),
-    % io:format("Timer: ~p~n", [TimerPid]),
-    T = {line, 0, {Row, Col}, get_rot(line, 0)},
-    {T, TimerPid};
-generate(Pid, Time, {Row, Col}, Pid) ->
+generate({Row, Col}, line) ->
+    {line, 0, {Row, Col}, get_rot(line, 0)};
+generate({Row, Col}, _) ->
     Tetrominos = [t, line, zigz, zags, square, left, right],
     % random:seed(erlang:now()),
     Type = lists:nth(rand:uniform(7), Tetrominos),
-    TimerPid = spawn(fun () -> tetris:timer(Pid, Time) end),
-    % io:format("Timer: ~p~n", [TimerPid]),
     T = {Type, 0, {Row, Col}, get_rot(Type, 0)},
-    {T, TimerPid};
-generate(Pid, Time, {Row, Col}, GameRoomPid) ->
-    Tetrominos = [t, line, zigz, zags, square, left, right],
-    % random:seed(erlang:now()),
-    Type = lists:nth(rand:uniform(7), Tetrominos),
-    TimerPid = spawn(fun () -> tetris:timer(Pid, Time) end),
-    % io:format("Timer: ~p~n", [TimerPid]),
-    T = {Type, 0, {Row, Col}, get_rot(Type, 0)},
-    GameRoomPid ! {newpiece, T, self()},
-    {T, TimerPid}.
+    T.
 
 
 % rotates a tetromino

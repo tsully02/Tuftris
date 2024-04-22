@@ -46,8 +46,11 @@
 -define(TITLESCR_HEIGHT, 20).
 -define(LOGO_WIDTH, 40).
 
--define(BACKGROUND_COLOR, ?ceCOLOR_CYAN).  % 234
+% 240
+-define(BORDER_COLOR, 245).
+-define(BACKGROUND_COLOR, 234).  % 234
 -define(SCREEN_BGD_COLOR, 234).  % 234
+-define(GHOST_COLOR, 250). % refers to the color pair
 
 -define(TITLE_MSG, ["Press:", "1 - Single player", "2 - Create a multiplayer room", "3 - Join a multiplayer room", "q - quit"]).
 
