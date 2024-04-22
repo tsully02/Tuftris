@@ -44,6 +44,7 @@ start_game(GameRoom, NumPlayers, Listener, ok) ->
     Preview = [tetromino:generate({1, 5}, GameRoom), tetromino:generate({1, 5}, GameRoom), tetromino:generate({1, 5}, GameRoom)],
     Listener ! {self(), winboardprev, Win, Board, Preview},
     Listener ! {self(), draw},
+    Listener ! draw,
     % tetris_io:draw_board(Board, Win),
     % tetris_io:draw_board(Board, Win),
     Listener ! {self(), draw_tetromino, T},
@@ -385,7 +386,7 @@ draw_boards(PlayersList, {Y, X, Width, Height}, GameRoom) ->
                     tetris_io:draw_board(Board, {Y, Col, Width, Height}),
                     GameRoom ! {player, Player, col, Col},
                     Col + (?BOARD_WIDTH * 2)
-                end, X, PlayersList).
+                end, X + 2, PlayersList).
 
 %%% 
 %%% Listener needs to:
@@ -430,6 +431,7 @@ paint_players(Self={{Name, Pid, Listener}, Board}, Preview, Players, Win, GameRo
         draw -> 
             draw_boards([Self | Players], Win, GameRoom),
             paint_players(Self, Preview, Players, Win, GameRoom);
+        % {newpiece, Player, }
         {_RefreshPid, resize} ->
             NewWin = tetris_io:calc_game_win_coords(?BOARD_WIDTH, ?BOARD_HEIGHT),
             tetris_io:paint_screen(border),
