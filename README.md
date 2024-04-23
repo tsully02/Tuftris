@@ -130,5 +130,15 @@ Commented out code:
 
   
 
+ o
+/|\
+/ \
            
+\ o /
+  | 
+ / \
+
+\ o   
+  | \     
+ / \  
 

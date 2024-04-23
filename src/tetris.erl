@@ -299,6 +299,7 @@ lost_input(GameRoom, Listener, RefreshPid, TimerPid) ->
     end.
 
 quit_game(GameRoom, Listener, RefreshPid, TimerPid) ->
+    GameRoom ! {playerquit, self()},
     TimerPid ! {self(), killtimer},
     Listener ! {self(), username},
     UserName = get_user(Listener),
@@ -310,6 +311,7 @@ quit_game(GameRoom, Listener, RefreshPid, TimerPid) ->
     tetris(Status, Listener2, RefreshPid, RoomName).
 
 leave_game(GameRoom, Listener, RefreshPid, UserName) ->
+    GameRoom ! {playerquit, self()},
     Listener ! {lebron, jamie},
     Listener2 = spawn_link(fun () -> listener(UserName) end),
     tetris_io:set_auto_refresh(RefreshPid, true),
@@ -600,15 +602,22 @@ paint_players(Self={{Name, Pid, Listener}, Board}, Preview, Players, Win, GameRo
 
 print_end_game_screen(Rankings, Pid) -> 
     tetris_io:paint_screen(border),
-    NewWin = tetris_io:calc_game_win_coords(?BOARD_WIDTH, ?BOARD_HEIGHT),
+    NewWin = tetris_io:calc_game_win_coords(10, ?BOARD_HEIGHT),
     {WinR, WinC, _, _} = NewWin,    
     tetris_io:set_color(bg),
-    tetris_io:paint_box({WinR, WinC}, 20, length(Rankings) + 1),
+    RankHeight = length(Rankings) + 1,
+    tetris_io:paint_box({WinR, WinC}, 20, RankHeight),
     tetris_io:set_color(ghost),
     cecho:mvaddstr(WinR, WinC, "Rankings:"),
     print_rankings(Rankings, {WinR + 1, WinC}, 0),
+
+    % tetris_io:set_color(bg),
+    % {PodiumR, PodiumC, PodiumW, PodiumH} = tetris_io:calc_game_win_coords(15, WinR + RankHeight + 1 + 10),
+    % tetris_io:paint_box({WinR + RankHeight + 1, PodiumC}, 30, 10),
+
     tetris_io:set_color(border),
-    tetris_io:draw_centered_message(15, NewWin, ["Press [Space] to continue"]),
+    % tetris_io:draw_centered_message(0, {WinR + RankHeight + 2 + 10, PodiumC, PodiumW, PodiumH}, ["Press [Space] to continue"]),
+    tetris_io:draw_centered_message(14, NewWin, ["Press [Space] to continue"]),
     cecho:refresh(),
     receive
         {lebron, jamie} -> ok
