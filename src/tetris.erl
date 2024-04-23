@@ -294,15 +294,22 @@ lost_input(GameRoom, Listener, RefreshPid, TimerPid) ->
         {clearrow, Rows} -> 
             Listener ! {self(), clear_other_rows, Rows},
             lost_input(GameRoom, Listener, RefreshPid, TimerPid);
-        {GameRoom, game_over} -> quit_game(GameRoom, Listener, RefreshPid, self());
+        {GameRoom, game_over, Rankings} -> end_game_screen(Rankings, GameRoom, Listener, RefreshPid, TimerPid);
         {_Pid, key, $q} -> quit_game(GameRoom, Listener, RefreshPid, self())
     end.
 
 quit_game(GameRoom, Listener, RefreshPid, TimerPid) ->
     TimerPid ! {self(), killtimer},
-    GameRoom ! {playerquit, self()},
     Listener ! {self(), username},
     UserName = get_user(Listener),
+    Listener ! {lebron, jamie},
+    Listener2 = spawn_link(fun () -> listener(UserName) end),
+    tetris_io:set_auto_refresh(RefreshPid, true),
+    tetris_io:set_resize_recipient(RefreshPid, self()),
+    {Status, RoomName} = title_screen(UserName, Listener2),
+    tetris(Status, Listener2, RefreshPid, RoomName).
+
+leave_game(GameRoom, Listener, RefreshPid, UserName) ->
     Listener ! {lebron, jamie},
     Listener2 = spawn_link(fun () -> listener(UserName) end),
     tetris_io:set_auto_refresh(RefreshPid, true),
@@ -315,6 +322,22 @@ get_user(Listener) ->
         {Listener, user, UserName} -> UserName
     end.
 
+end_game_screen(Rankings, GameRoom, Listener, RefreshPid, TimerPid) ->
+    % io:format("HEREEEEEEEEEE~n"),
+    TimerPid ! {self(), killtimer},
+    Listener ! {self(), username},
+    UserName = get_user(Listener),
+    Listener ! {self(), end_game, Rankings},
+    get_space(),
+    leave_game(GameRoom, Listener, RefreshPid, UserName).
+
+get_space() ->
+    receive 
+        {_Pid, key, ?KEY_SPACE} -> ok;
+        _ -> get_space()
+    end.
+
+
 wait_for_input(Tetromino, Preview, Board, TimerPid, GameRoom, Listener, RefreshPid) ->
     receive
         {TimerPid, timer} ->
@@ -325,8 +348,9 @@ wait_for_input(Tetromino, Preview, Board, TimerPid, GameRoom, Listener, RefreshP
                 {NewTetromino, NewPreview, NewBoard, NewTimerPid} ->
                            wait_for_input(NewTetromino, NewPreview, NewBoard, NewTimerPid, GameRoom, Listener, RefreshPid)
             end;
-        {GameRoom, game_over} ->
-            quit_game(GameRoom, Listener, RefreshPid, TimerPid);
+        {GameRoom, game_over, Rankings} ->
+            % quit_game(GameRoom, Listener, RefreshPid, TimerPid);
+            end_game_screen(Rankings, GameRoom, Listener, RefreshPid, TimerPid);
         {_Pid, key, $q} -> 
             quit_game(GameRoom, Listener, RefreshPid, TimerPid);
         {_Pid, key, $l} -> 
@@ -563,6 +587,9 @@ paint_players(Self={{Name, Pid, Listener}, Board}, Preview, Players, Win, GameRo
         {Pid, username} ->
             Pid ! {self(), user, Name},
             paint_players(Self, Preview, Players, Win, GameRoom, Speed, NumCleared);
+        {Pid, end_game, Rankings} ->
+            % io:format("HOWDY~n"),
+            print_end_game_screen(Rankings, Pid);
         {Pid, speed} ->
             Pid ! {self(), speed, Speed},
             paint_players(Self, Preview, Players, Win, GameRoom, Speed, NumCleared);
@@ -570,6 +597,36 @@ paint_players(Self={{Name, Pid, Listener}, Board}, Preview, Players, Win, GameRo
             % GameRoom ! {unexpected_msg, self(), Msg, Pid},
             paint_players(Self, Preview, Players, Win, GameRoom, Speed, NumCleared)
     end.
+
+print_end_game_screen(Rankings, Pid) -> 
+    tetris_io:paint_screen(border),
+    NewWin = tetris_io:calc_game_win_coords(?BOARD_WIDTH, ?BOARD_HEIGHT),
+    {WinR, WinC, _, _} = NewWin,    
+    tetris_io:set_color(bg),
+    tetris_io:paint_box({WinR, WinC}, 20, length(Rankings) + 1),
+    tetris_io:set_color(ghost),
+    cecho:mvaddstr(WinR, WinC, "Rankings:"),
+    print_rankings(Rankings, {WinR + 1, WinC}, 0),
+    tetris_io:set_color(border),
+    tetris_io:draw_centered_message(15, NewWin, ["Press [Space] to continue"]),
+    cecho:refresh(),
+    receive
+        {lebron, jamie} -> ok
+    end.
+
+print_rankings([], _, _) -> ok;
+print_rankings([{Name, _Pid} | T], Win={R, C}, Idx) ->
+    case Idx of
+        0 -> tetris_io:set_color(gold_text);
+        1 -> tetris_io:set_color(silver_text);
+        2 -> tetris_io:set_color(bronze_text);
+        _ -> tetris_io:set_color(ghost)
+    end, 
+    Str = integer_to_list(Idx + 1) ++ ". " ++ Name,
+    cecho:mvaddstr(R, C, Str),
+    print_rankings(T, {R + 1, C}, Idx + 1).
+
+
 
 %%% TODOs:
 %%% - swap pieces

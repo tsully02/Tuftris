@@ -4,7 +4,7 @@
 -include_lib("tetris.hrl").
 
 -export([init/0, stop/0, spawn_keyboard_proc/0, set_auto_refresh/2, set_resize_recipient/2, calc_game_win_coords/2, draw_board/2, draw_tetromino/2, delete_tetromino/3, draw_title_screen/2, draw_centered_message/3, draw_ghost/3, text_box/3]).
--export([animate_clear_row/4, paint_screen/1, draw_preview/3, set_color/1]).
+-export([animate_clear_row/4, paint_screen/1, paint_box/3, draw_preview/3, set_color/1]).
 
 init() ->
     application:start(cecho),
@@ -187,7 +187,13 @@ set_color(Type) ->
         scrbg -> 11;
         title -> 7;
         clear -> 7;
-        logo -> 10
+        logo -> 10;
+        gold_text -> ?GOLD_TEXT;
+        gold -> ?GOLD;
+        silver_text -> ?SILVER_TEXT;
+        silver -> ?SILVER;
+        bronze_text -> ?BRONZE_TEXT;
+        bronze -> ?BRONZE
     end, cecho:attron(?ceCOLOR_PAIR(Color)).
 
 
@@ -218,7 +224,13 @@ pair_creation() ->
     ok = cecho:init_pair(?BACKGROUND_COLOR, ?ceCOLOR_BLACK, ?BACKGROUND_COLOR), % BACKGROUND,
     ok = cecho:init_pair(39, ?ceCOLOR_BLACK, 39), % BACKGROUND
     ok = cecho:init_pair(?BORDER_COLOR, ?ceCOLOR_BLACK, ?BORDER_COLOR),
-    ok = cecho:init_pair(?GHOST_COLOR, ?ceCOLOR_WHITE, ?BACKGROUND_COLOR).
+    ok = cecho:init_pair(?GHOST_COLOR, ?ceCOLOR_WHITE, ?BACKGROUND_COLOR),
+    ok = cecho:init_pair(?GOLD_TEXT, ?GOLD, ?BACKGROUND_COLOR),
+    ok = cecho:init_pair(?SILVER_TEXT, ?SILVER, ?BACKGROUND_COLOR),
+    ok = cecho:init_pair(?BRONZE_TEXT, ?BRONZE, ?BACKGROUND_COLOR),
+    ok = cecho:init_pair(?GOLD, ?ceCOLOR_BLACK, ?GOLD),
+    ok = cecho:init_pair(?SILVER, ?ceCOLOR_BLACK, ?SILVER),
+    ok = cecho:init_pair(?BRONZE, ?ceCOLOR_BLACK, ?BRONZE).
 
 
 paint_screen(ColorType) ->

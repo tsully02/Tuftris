@@ -42,8 +42,11 @@
                                {-1, 1}]).
 
 -define(GOLD, 178).
--define(SILVER, 245).
+-define(SILVER, 244).
 -define(BRONZE, 130).
+-define(GOLD_TEXT, 15).
+-define(SILVER_TEXT, 16).
+-define(BRONZE_TEXT, 17).
 -define(KEY_RESIZE, 410).
 -define(KEY_SPACE, 32).
 
