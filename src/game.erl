@@ -25,14 +25,16 @@
 %%%
 %%%
 
-init(ServerInfo, RoomName, NumPlayers, {PlayerName, PlayerPid, PlayerListener}) -> 
-    io:format("~p ~p: ~p joined the game!~n", [RoomName, self(), PlayerName]),
-    Players = receive_players([{PlayerName, PlayerPid, PlayerListener}], NumPlayers, 1),
+init(ServerInfo, RoomName, NumPlayers, First={_PlayerName, _PlayerPid, _PlayerListener}) -> 
+    io:format("~p ~p: ~p joined the game!~n", [RoomName, self(), First]),
+    Players = receive_players([First], NumPlayers, 1),
     send_message_to_all_listeners({self(), players, Players}, Players),
     send_message_to_all({self(), start}, Players),
     io:format("Num players: ~p~n", [length(Players)]),
-    receive_messages(Players, lists:duplicate(?BOARD_HEIGHT, 0), length(Players)),
-    send_message_to_all({self(), game_over}, Players),
+    io:format("Players: ~p~n", [Players]),
+    NewPlayers = receive_messages(Players, lists:duplicate(?BOARD_HEIGHT, []), length(Players), []),
+    io:format("Game over! ~p~n", [NewPlayers]),
+    send_message_to_all({self(), game_over}, NewPlayers),
     server:game_over(ServerInfo, RoomName),
     ok.
 
@@ -58,10 +60,10 @@ receive_players(Players, MaxPlayers, MaxPlayers) ->
     Players;
 receive_players(Players, MaxPlayers, NumPlayers) ->
     receive 
-        {join_room, {PlayerName, PlayerPid, Listener}} -> 
-            io:format("~p: ~p joined the game!~n", [self(), PlayerName]),
+        {join_room, Player={_PlayerName, _PlayerPid, _Listener}} -> 
+            io:format("~p: ~p joined the game!~n", [self(), Player]),
             % Player = {PlayerName, PlayerPid},
-            Player = {PlayerName, PlayerPid, Listener},
+            % Player = {PlayerName, PlayerPid, Listener},
             NewPlayers = [Player | Players],
             receive_players(NewPlayers, MaxPlayers, NumPlayers + 1);
         M ->
@@ -69,65 +71,67 @@ receive_players(Players, MaxPlayers, NumPlayers) ->
             receive_players(Players, MaxPlayers, NumPlayers)
     end.
 
-
-delete_num([], _Num) -> [];
-delete_num([Num | T], Num) -> 
-    delete_num(T, Num);
-delete_num([H | T], Num) ->
-    [H | delete_num(T, Num)].
-
-check_rows(Players, ClearedRows, Rows, NumCurrPlayers) ->
-    UpdatedRows = lists:map(fun ({Idx, Cnt}) ->
+check_rows(Players, ClearedRows, ClearPlayer, Rows, NumCurrPlayers) ->
+    % Add ClearPlayer to lists whose indices are specified in ClearedRows
+    % Boards are 0-indexed but enumerate is 1-indexed
+    UpdatedRows = lists:map(fun ({Idx, ClearedPlayers}) ->
                                 case lists:member(Idx - 1, ClearedRows) of
-                                    true -> Cnt + 1;
-                                    false -> Cnt
+                                    true -> [ClearPlayer | ClearedPlayers];
+                                    false -> ClearedPlayers
                                 end
                             end,
                             lists:enumerate(Rows)),
-    io:format("updaated counts: ~p~n", [UpdatedRows]),
-    RowsToSend = lists:filtermap(fun ({Idx, Cnt}) ->
-                                    case Cnt of
+    io:format("updated row clears: ~p~n", [UpdatedRows]),
+    RowsToSend = lists:filtermap(fun ({Idx, ClearedPlayers}) ->
+                                    case length(ClearedPlayers) of
                                         NumCurrPlayers -> {true, Idx - 1};
                                         _ -> false
                                     end
                                 end, lists:enumerate(UpdatedRows)),
     send_message_to_all({clearrow, RowsToSend}, Players),
     io:format("rows cleared: ~p~n", [RowsToSend]),
-    NewRows = delete_num(UpdatedRows, NumCurrPlayers),
+    NewRows = lists:filter(fun (RowPlayers) -> length(RowPlayers) /= NumCurrPlayers end, UpdatedRows),
     io:format("new rows: ~p~n", [NewRows]),
-    lists:append(lists:duplicate(?BOARD_HEIGHT - length(NewRows), length(Players) - NumCurrPlayers), NewRows).
+    lists:append(lists:duplicate(?BOARD_HEIGHT - length(NewRows), []), NewRows).
 
-receive_messages(Players, Rows, NumCurrPlayers) ->
+delete_player(Pid, Rows) ->
+    lists:map(fun (PlayerPids) -> lists:delete(Pid, PlayerPids) end, Rows).
+
+receive_messages(Players, Rows, NumCurrPlayers, NotPlaying) ->
     receive
         {newpiece, T, PInfo} ->
             % io:format("new piece!~n", []),
             send_message({newpiece, PInfo, T}, Players, PInfo),
-            receive_messages(Players, Rows, NumCurrPlayers);
-        {rowcleared, ClearedRows, _PInfo} ->
+            receive_messages(Players, Rows, NumCurrPlayers, NotPlaying);
+        {rowcleared, ClearedRows, PInfo} ->
             % io:format("clearing row ~p~n", [ClearedRows]),
-            NewRows = check_rows(Players, ClearedRows, Rows, NumCurrPlayers),
-            receive_messages(Players, NewRows, NumCurrPlayers);
+            NewRows = check_rows(Players, ClearedRows, PInfo, Rows, NumCurrPlayers),
+            receive_messages(Players, NewRows, NumCurrPlayers, NotPlaying);
         {placepiece, T, PInfo} ->
             io:format("Piece placed!~n"),
             send_listener({self(), placepiece, PInfo, T}, Players, PInfo),
-            receive_messages(Players, Rows, NumCurrPlayers);
-        {playerlost, _PInfo} ->
+            receive_messages(Players, Rows, NumCurrPlayers, NotPlaying);
+        {playerlost, PInfo} ->
             NewNum = NumCurrPlayers - 1,
             case NewNum of 
-                0 -> ok;
-                _ -> NewRows = check_rows(Players, [], Rows, NewNum),
-                receive_messages(Players, NewRows, NewNum)
+                0 -> Players;
+                _ -> NewRows = check_rows(Players, [], PInfo, delete_player(PInfo, Rows), NewNum),
+                receive_messages(Players, NewRows, NewNum, [PInfo | NotPlaying])
             end;
         {playerquit, PInfo} ->
             NewPlayers = lists:keydelete(PInfo, 2, Players),
-            NewNum = NumCurrPlayers - 1,
+            Exists = lists:keyfind(PInfo, 2, lists:enumerate(NotPlaying)),
+            NewNum = case Exists of 
+                false -> NumCurrPlayers - 1;
+                _ -> NumCurrPlayers
+            end,
             case NewNum of 
-                0 -> ok;
-                _ -> NewRows = check_rows(NewPlayers, [], Rows, NewNum),
-                receive_messages(NewPlayers, NewRows, NewNum)
+                0 -> NewPlayers;
+                _ -> NewRows = check_rows(NewPlayers, [], PInfo, delete_player(PInfo, Rows), NewNum),
+                receive_messages(NewPlayers, NewRows, NewNum, NotPlaying)
             end;
         stop -> ok;
         Any ->
             io:format("Unhandled message: ~p~n", [Any]),
-            receive_messages(Players, Rows, NumCurrPlayers)
+            receive_messages(Players, Rows, NumCurrPlayers, NotPlaying)
     end.

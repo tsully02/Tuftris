@@ -4,7 +4,7 @@
 -include_lib("tetris.hrl").
 
 -export([init/0, stop/0, spawn_keyboard_proc/0, set_auto_refresh/2, set_resize_recipient/2, calc_game_win_coords/2, draw_board/2, draw_tetromino/2, delete_tetromino/3, draw_title_screen/2, draw_ghost/3, text_box/3]).
--export([animate_clear_row/3, paint_screen/1, draw_preview/3]).
+-export([animate_clear_row/4, paint_screen/1, draw_preview/3]).
 
 init() ->
     application:start(cecho),
@@ -185,6 +185,7 @@ set_color(Type) ->
         border -> ?BORDER_COLOR;
         scrbg -> 11;
         title -> 7;
+        clear -> 7;
         logo -> 10
     end, cecho:attron(?ceCOLOR_PAIR(Color)).
 
@@ -232,28 +233,26 @@ draw_centered_message(Row, {WinY, WinX, WinWidth, WinHeight}, [Line | LineT]) ->
     cecho:mvaddstr(Row + WinY, ((WinWidth * 2) - string:length(Line)) div 2 + WinX, Line),
     draw_centered_message(Row + 1, {WinY, WinX, WinWidth, WinHeight}, LineT).
 
-animate_clear_row(RowNums, Win, Length) -> animate_clear_row_r(RowNums, Win, Length, 0).
+animate_clear_row(RowNums, Sleep, Win, Length) -> animate_clear_row_r(RowNums, Sleep, Win, Length, 0).
 
-animate_clear_row_r([], _, _, _) ->
+animate_clear_row_r([], _, _, _, _) ->
     ok;
-animate_clear_row_r(RowNums, Win, Length, Length) ->
-    lists:foreach(fun (R) -> 
-        draw_square({R, Length * 2 - 2}, Win, bg) end, RowNums),
+animate_clear_row_r(_, _Sleep, _Win,  Length, Length) ->
     cecho:refresh();
-animate_clear_row_r(RowNums, Win, Length, 0) ->
+animate_clear_row_r(RowNums, Sleep, Win, Length, 0) ->
     lists:foreach(fun (R) -> 
-        draw_square({R, 0}, Win, title) end, RowNums),
+        draw_square({R, 0}, Win, clear) end, RowNums),
     cecho:refresh(),
-    timer:sleep(40),
-    animate_clear_row_r(RowNums, Win, Length, 1);
-animate_clear_row_r(RowNums, Win, Length, Curr) ->
+    timer:sleep(Sleep),
+    animate_clear_row_r(RowNums, Sleep, Win, Length, 1);
+animate_clear_row_r(RowNums, Sleep, Win, Length, Curr) ->
     lists:foreach(fun (R) -> 
         draw_square({R, (Curr - 1) * 2}, Win, bg) end, RowNums),
     lists:foreach(fun (R) -> 
-        draw_square({R, Curr * 2}, Win, title) end, RowNums),
+        draw_square({R, Curr * 2}, Win, clear) end, RowNums),
     cecho:refresh(),
-    timer:sleep(40),
-    animate_clear_row_r(RowNums, Win, Length, Curr + 1).
+    timer:sleep(Sleep),
+    animate_clear_row_r(RowNums, Sleep, Win, Length, Curr + 1).
 
 draw_title_screen({WinY, WinX, Width, Height}, CenteredMessage) ->
     TitleWin = {WinY, WinX, Width, Height},

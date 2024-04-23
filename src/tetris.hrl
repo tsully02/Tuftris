@@ -45,6 +45,7 @@
 -define(TITLESCR_WIDTH, 42).
 -define(TITLESCR_HEIGHT, 20).
 -define(LOGO_WIDTH, 40).
+-define(CLEAR_ROW_SLEEP, 40).
 
 % 240
 -define(BORDER_COLOR, 245).
@@ -52,7 +53,8 @@
 -define(SCREEN_BGD_COLOR, 234).  % 234
 -define(GHOST_COLOR, 250). % refers to the color pair
 
--define(TITLE_MSG, ["Press:", "1 - Single player", "2 - Create a multiplayer room", "3 - Join a multiplayer room", "q - quit"]).
+-define(TITLE_MSG, ["Press:", "1 - Single player", "2 - Create a multiplayer room", "3 - Join a multiplayer room", "q - Quit"]).
+-define(WAITING_MSG, ["Waiting for other players..."]).
 
 -define(TITLE_LOGO, ["[][][][][]   []    []   [][][][]   [][][][][]   [][][][]   [][][][][]   [][][][]",
                      "    []       []    []   []             []       []    []       []       []      ",
