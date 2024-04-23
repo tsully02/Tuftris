@@ -117,10 +117,13 @@ handle_cast(stop, State) ->
 
 % terminates all the processes of the server
 -spec terminate(tuple(), list()) -> ok.
-terminate(_Reason, _State) ->
-    % lists:foreach(fun ({_, Users}) ->
-    %     lists:foreach(fun ({_, Pid}) -> Pid ! quitting end, Users) end,
-    %     State),
+terminate(_Reason, State) ->
+    lists:foreach(fun ({_, RoomPid, _, Players}) ->
+                    RoomPid ! stop,
+                    lists:foreach(fun ({_, Pid, _}) ->
+                                    Pid ! serverdead
+                                  end, Players)
+                  end, State),
     ok.
 
 %%%===================================================================

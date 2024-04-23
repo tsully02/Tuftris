@@ -3,8 +3,8 @@
 -include_lib("../cecho/include/cecho.hrl").
 -include_lib("tetris.hrl").
 
--export([init/0, stop/0, spawn_keyboard_proc/0, set_auto_refresh/2, set_resize_recipient/2, calc_game_win_coords/2, draw_board/2, draw_tetromino/2, delete_tetromino/3, draw_title_screen/2, draw_ghost/3, text_box/3]).
--export([animate_clear_row/4, paint_screen/1, draw_preview/3]).
+-export([init/0, stop/0, spawn_keyboard_proc/0, set_auto_refresh/2, set_resize_recipient/2, calc_game_win_coords/2, draw_board/2, draw_tetromino/2, delete_tetromino/3, draw_title_screen/2, draw_centered_message/3, draw_ghost/3, text_box/3]).
+-export([animate_clear_row/4, paint_screen/1, draw_preview/3, set_color/1]).
 
 init() ->
     application:start(cecho),
@@ -183,6 +183,7 @@ set_color(Type) ->
         line -> ?LINE_COLOR;
         bg   -> ?BACKGROUND_COLOR;  % Should this be ?BACKGROUND_COLOR
         border -> ?BORDER_COLOR;
+        bigboy -> 200;
         scrbg -> 11;
         title -> 7;
         clear -> 7;
@@ -205,15 +206,16 @@ pair_creation() ->
     ok = cecho:init_pair(4, ?ceCOLOR_BLACK, ?ceCOLOR_BLUE),
     ok = cecho:init_pair(5, ?ceCOLOR_BLACK, ?ceCOLOR_MAGENTA),
     ok = cecho:init_pair(6, ?ceCOLOR_BLACK, ?ceCOLOR_CYAN),
-    ok = cecho:init_pair(7, ?ceCOLOR_BLACK, ?ceCOLOR_WHITE),
+    ok = cecho:init_pair(7, ?ceCOLOR_BLACK, ?TITLE_BGD_COLOR),
     ok = cecho:init_pair(8, ?ceCOLOR_BLACK, ?ceCOLOR_BLACK),
     ok = cecho:init_pair(9, ?ceCOLOR_BLACK, 9),
-    ok = cecho:init_pair(10, ?ceCOLOR_MAGENTA, ?ceCOLOR_WHITE),
+    ok = cecho:init_pair(10, 27, ?TITLE_BGD_COLOR),
     ok = cecho:init_pair(11, ?ceCOLOR_BLACK, ?SCREEN_BGD_COLOR),
     ok = cecho:init_pair(60, ?ceCOLOR_BLACK, 60), % GRAY
     ok = cecho:init_pair(203, ?ceCOLOR_BLACK, 203), % ORANGE
+    ok = cecho:init_pair(200, ?ceCOLOR_BLACK, 200), % ORANGE
     ok = cecho:init_pair(92, ?ceCOLOR_BLACK, 92), % PURPLE
-    ok = cecho:init_pair(?BACKGROUND_COLOR, ?ceCOLOR_BLACK, ?BACKGROUND_COLOR), % BACKGROUND
+    ok = cecho:init_pair(?BACKGROUND_COLOR, ?ceCOLOR_BLACK, ?BACKGROUND_COLOR), % BACKGROUND,
     ok = cecho:init_pair(39, ?ceCOLOR_BLACK, 39), % BACKGROUND
     ok = cecho:init_pair(?BORDER_COLOR, ?ceCOLOR_BLACK, ?BORDER_COLOR),
     ok = cecho:init_pair(?GHOST_COLOR, ?ceCOLOR_WHITE, ?BACKGROUND_COLOR).

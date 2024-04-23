@@ -29,6 +29,8 @@ type(Piece) -> element(1, Piece).
 %%% the double code this is temporary i swear...
 generate({Row, Col}, line) ->
     {line, 0, {Row, Col}, get_rot(line, 0)};
+generate({Row, Col}, bigboy) ->
+    {bigboy, 0, {Row, Col}, get_rot(bigboy, 0)};
 generate({Row, Col}, _) ->
     Tetrominos = [t, line, zigz, zags, square, left, right],
     % random:seed(erlang:now()),
@@ -77,7 +79,8 @@ get_rot(Type, Rotation) ->
         square -> List = ?Rotation_Square;
         zigz -> List = ?Rotation_Zigz;
         zags -> List = ?Rotation_Zags;
-        line -> List = ?Rotation_Line
+        line -> List = ?Rotation_Line;
+        bigboy -> List = ?bigboy
     end,
     lists:nth(Rotation + 1, List).
 

@@ -99,10 +99,10 @@ delete_player(Pid, Rows) ->
 
 receive_messages(Players, Rows, NumCurrPlayers, NotPlaying) ->
     receive
-        {newpiece, T, PInfo} ->
-            % io:format("new piece!~n", []),
-            send_message({newpiece, PInfo, T}, Players, PInfo),
-            receive_messages(Players, Rows, NumCurrPlayers, NotPlaying);
+        % {newpiece, T, PInfo} ->
+        %     % io:format("new piece!~n"),
+        %     send_message({newpiece, PInfo, T}, Players, PInfo),
+        %     receive_messages(Players, Rows, NumCurrPlayers, NotPlaying);
         {rowcleared, ClearedRows, PInfo} ->
             % io:format("clearing row ~p~n", [ClearedRows]),
             NewRows = check_rows(Players, ClearedRows, PInfo, Rows, NumCurrPlayers),
