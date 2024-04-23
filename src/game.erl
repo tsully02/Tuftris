@@ -114,6 +114,7 @@ receive_messages(Players, Rows, NumCurrPlayers, NotPlaying) ->
         {playerlost, PInfo} ->
             NewNum = NumCurrPlayers - 1,
             case NewNum of 
+                0 -> {Players, [get_name_pid(Players, PInfo) | NotPlaying]};
                 1 -> {Players, add_winner(Players, [get_name_pid(Players, PInfo) | NotPlaying])};
                 _ -> send_listener({self(), clearplayer, PInfo}, Players, PInfo),
                 NewRows = check_rows(Players, [], PInfo, delete_player(PInfo, Rows), NewNum),
@@ -130,6 +131,7 @@ receive_messages(Players, Rows, NumCurrPlayers, NotPlaying) ->
             end,
             io:format("Num players: ~p~n", [NewNum]),
             case NewNum of 
+                0 -> {NewPlayers, NewNotPlaying};
                 1 -> {NewPlayers, add_winner(Players, NewNotPlaying)};
                 _ -> NewRows = check_rows(NewPlayers, [], PInfo, delete_player(PInfo, Rows), NewNum),
                 receive_messages(NewPlayers, NewRows, NewNum, NewNotPlaying)

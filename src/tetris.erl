@@ -622,7 +622,7 @@ print_rankings([{Name, _Pid} | T], Win={R, C}, Idx) ->
         2 -> tetris_io:set_color(bronze_text);
         _ -> tetris_io:set_color(ghost)
     end, 
-    Str = integer_to_list(Idx + 1) ++ ". " ++ Name,
+    Str = " " ++ integer_to_list(Idx + 1) ++ ". " ++ Name,
     cecho:mvaddstr(R, C, Str),
     print_rankings(T, {R + 1, C}, Idx + 1).
 
