@@ -62,7 +62,7 @@
 -define(TITLE_BGD_COLOR, ?ceCOLOR_WHITE).
 -define(GHOST_COLOR, 250). % refers to the color pair
 
--define(SERVER_NODE, 'a@vm-hw05.eecs.tufts.edu').
+-define(SERVER_NODE, 't@vm-hw05.eecs.tufts.edu').
 
 -define(TITLE_MSG, ["Press:", "1 - Single player", "2 - Create a multiplayer room", "3 - Join a multiplayer room", "q - Quit"]).
 

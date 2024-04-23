@@ -115,16 +115,20 @@ receive_messages(Players, Rows, NumCurrPlayers, NotPlaying) ->
             NewNum = NumCurrPlayers - 1,
             case NewNum of 
                 0 -> Players;
-                _ -> NewRows = check_rows(Players, [], PInfo, delete_player(PInfo, Rows), NewNum),
+                _ -> send_listener({self(), clearplayer, PInfo}, Players, PInfo),
+                NewRows = check_rows(Players, [], PInfo, delete_player(PInfo, Rows), NewNum),
                 receive_messages(Players, NewRows, NewNum, [PInfo | NotPlaying])
             end;
         {playerquit, PInfo} ->
             NewPlayers = lists:keydelete(PInfo, 2, Players),
             Exists = lists:keyfind(PInfo, 2, lists:enumerate(NotPlaying)),
             NewNum = case Exists of 
-                false -> NumCurrPlayers - 1;
-                _ -> NumCurrPlayers
+                false -> send_listener({self(), clearplayer, PInfo}, Players, PInfo),
+                NumCurrPlayers - 1;
+                _ -> io:format("Already lost!~n"),
+                NumCurrPlayers
             end,
+            io:format("Num players: ~p~n", [NewNum]),
             case NewNum of 
                 0 -> NewPlayers;
                 _ -> NewRows = check_rows(NewPlayers, [], PInfo, delete_player(PInfo, Rows), NewNum),

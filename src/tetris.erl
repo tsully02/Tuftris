@@ -218,6 +218,9 @@ check_clear_row({Type, Rotation, Center, Cells}, Board, GameRoom) ->
 clear_board_rows(Rows, Board) ->
     lists:foldl(fun (R, CurrBoard) -> board:remove_row(CurrBoard, R) end, Board, Rows).
 
+clear_rand_board_rows(Rows, Board) ->
+    lists:foldl(fun (R, CurrBoard) -> board:remove_rand_row(CurrBoard, R) end, Board, Rows).
+
 clear_row(Rows, Board, Listener, Tetromino) ->
     NewBoard = clear_board_rows(Rows, Board),
     Listener ! {self(), clear_row, NewBoard, Rows, Tetromino},
@@ -391,12 +394,17 @@ listener(_UserName) ->
             {Win, Board, Preview} = receive
                 {_Pid, winboardprev, W, B, P} -> {W, B, P}
             end,
-            NewPlayers = lists:keydelete(self(), 3, Players),
+            % each player now has a tag to indicate if they are in the game
+            NewPlayers = new_players(lists:keydelete(self(), 3, Players)),
             Self = {lists:keyfind(self(), 3, Players), Board},
             PlayersList = lists:map(fun (Player) -> {Player, board:create(?BOARD_WIDTH, ?BOARD_HEIGHT, bg)} end, NewPlayers),
             % GameRoom ! {playerlist, PlayersList},
             paint_players(Self, Preview, PlayersList, Win, GameRoom, 1000, 0)
     end.
+
+new_players([]) -> [];
+new_players([{Name, Pid, List} | T]) -> 
+    [{Name, Pid, List, true} | new_players(T)].
 
 % PlayerNum start at 0 (first other player)
 get_player_win(PlayerNum, {Y, X, _, H}) ->
@@ -414,20 +422,22 @@ get_board(Players, PlayerInfo) -> get_board_r(Players, PlayerInfo, 0).
 
 
 get_board_r([], _PlayerInfo, _Idx) -> {error, doesnotexist};
-get_board_r([{{_, PlayerPid, _}, Board} | _T], PlayerPid, Idx) -> 
+get_board_r([{{_, PlayerPid, _, _}, Board} | _T], PlayerPid, Idx) -> 
     {Idx, Board};
 get_board_r([_ | T], PlayerPid, Idx) ->
     get_board_r(T, PlayerPid, Idx + 1).
 
 update_board([], _PlayerPid, _NewBoard) -> [];
-update_board([{PlayerInfo={_, PlayerPid, _}, _Board} | T], PlayerPid, NewBoard) -> 
+update_board([{PlayerInfo={_, PlayerPid, _, _}, _Board} | T], PlayerPid, NewBoard) -> 
     [{PlayerInfo, NewBoard} | T];
 update_board([H | T], PlayerInfo, NewBoard) ->
     [H | update_board(T, PlayerInfo, NewBoard)].
 
 clear_all_boards([], _Rows) -> [];
-clear_all_boards([{Player, Board} | T], Rows) ->
-    [{Player, clear_board_rows(Rows, Board)} | clear_all_boards(T, Rows)].
+clear_all_boards([{Player={_, _, _, true}, Board} | T], Rows) ->
+    [{Player, clear_board_rows(Rows, Board)} | clear_all_boards(T, Rows)];
+clear_all_boards([{Player={_, _, _, false}, Board} | T], Rows) ->
+    [{Player, clear_rand_board_rows(Rows, Board)} | clear_all_boards(T, Rows)].
 
 calc_speed(Speed, NumCleared, RowsCleared) when Speed =< 100 ->
     {Speed, NumCleared + RowsCleared};
@@ -437,10 +447,16 @@ calc_speed(Speed, NumCleared, RowsCleared) ->
     {Speed, NumCleared + RowsCleared}.
 
 draw_player_names([], _, _) -> ok;
-draw_player_names([{{Name, _, _}, _Board} | PlayerTail], Win, Idx) ->
+draw_player_names([{{Name, _, _, _}, _Board} | PlayerTail], Win, Idx) ->
     PlayerWin = get_player_win(Idx, Win),
     tetris_io:draw_centered_message(?BOARD_HEIGHT, PlayerWin, [Name]),
     draw_player_names(PlayerTail, Win, Idx + 1).
+
+player_lost([], _) -> [];
+player_lost([{{Name, Pid, List, _}, Board} | T], Pid) ->
+    [{{Name, Pid, List, false}, Board} | player_lost(T, Pid)];
+player_lost([H | T], Pid) ->
+    [H | player_lost(T, Pid)].
 
 
 %%% 
@@ -467,7 +483,14 @@ paint_players(Self={{Name, Pid, Listener}, Board}, Preview, Players, Win, GameRo
             tetris_io:draw_board(NewBoard, Win),
             cecho:refresh(),
             paint_players(NewSelf, Preview, Players, Win, GameRoom, Speed, NumCleared);
-
+        {GameRoom, clearplayer, PlayerPid} -> 
+            RandBoard = board:create_random(?BOARD_WIDTH, ?BOARD_HEIGHT),
+            {Idx, _} = get_board(Players, PlayerPid),
+            % NewBoard = board:place_piece(PlayerBoard, T),
+            BoardWin = get_player_win(Idx, Win),
+            tetris_io:draw_board(RandBoard, BoardWin),
+            NewPlayers = update_board(Players, PlayerPid, RandBoard),
+            paint_players(Self, Preview, player_lost(NewPlayers, PlayerPid), Win, GameRoom, Speed, NumCleared);
         {Pid, clear_row, NewBoard, Rows, Tetromino} ->
             NewSelf = {Me, NewBoard},
             NewPlayers = clear_all_boards(Players, Rows),
@@ -543,7 +566,7 @@ paint_players(Self={{Name, Pid, Listener}, Board}, Preview, Players, Win, GameRo
         {Pid, speed} ->
             Pid ! {self(), speed, Speed},
             paint_players(Self, Preview, Players, Win, GameRoom, Speed, NumCleared);
-        Msg ->
+        _Msg ->
             % GameRoom ! {unexpected_msg, self(), Msg, Pid},
             paint_players(Self, Preview, Players, Win, GameRoom, Speed, NumCleared)
     end.

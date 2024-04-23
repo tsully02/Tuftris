@@ -5,11 +5,23 @@
 % -include_lib("../cecho/include/cecho.hrl").
 -include_lib("tetris.hrl").
 
--export([create/3, get_color/3, is_filled/3, place_piece/2, remove_row/2, get_row/2]).
+-export([create/3, get_color/3, is_filled/3, place_piece/2, remove_row/2, remove_rand_row/2, get_row/2, create_random/2]).
 
 create(Width, Height, Color) ->
     List = list_of_arrays(Height, [], Width),
     lists:map(fun (Arr) -> array:map(fun (_, _) -> {false, Color} end, Arr) end, List).
+
+% t -> ?T_COLOR; % PURPLE
+%         square -> ?SQUARE_COLOR; % YELLOW
+%         left -> ?LEFT_COLOR; % ORANGE
+%         right -> ?RIGHT_COLOR; % BLUE
+%         zigz -> ?ZIGZ_COLOR;
+%         zags -> ?ZAGS_COLOR;
+%         line -> ?LINE_COLOR;
+create_random(Width, Height) ->
+    List = list_of_arrays(Height, [], Width),
+    Colors = [t, square, left, right, zigz, zags, line],
+    lists:map(fun (Arr) -> array:map(fun (_, _) -> {false, lists:nth(rand:uniform(7), Colors)} end, Arr) end, List).
 
 list_of_arrays(0, List, _ArrLen) -> List;
 list_of_arrays(LLen, List, ArrLen) ->
@@ -58,6 +70,17 @@ remove_row(Board, Row) ->
     ArrLen = array:size(BottomRow),
     [generate_empty_row(ArrLen) | lists:append(NewAbove, Below)].
 
+remove_rand_row(Board, Row) ->
+    {Above, Below} = lists:split(Row + 1, Board),
+    NewAbove = lists:droplast(Above),
+    [BottomRow | _] = Board,
+    ArrLen = array:size(BottomRow),
+    [generate_rand_row(ArrLen) | lists:append(NewAbove, Below)].
+
+generate_rand_row(Width) ->
+    Arr = array:new(Width),
+    Colors = [t, square, left, right, zigz, zags, line],
+    array:map(fun (_, _) -> {false, lists:nth(rand:uniform(7), Colors)} end, Arr).
 
 generate_empty_row(Width) ->
     Arr = array:new(Width),
