@@ -69,8 +69,11 @@
 
 -define(TITLE_MSG, ["Press:", "1 - Single player", "2 - Create a multiplayer room", "3 - Join a multiplayer room", "q - Quit"]).
 
--define(KEYBINDS, ["[c]: Swap piece     [up]: Rotate clockwise  [space]: Hard drop   [z]: Rotate counter clockwise",
-                   "[left]: Move left   [down]: Soft drop       [right]: Move right  [q]: Quit game               "]).
+% -define(KEYBINDS, ["[c]: Swap piece     [up]: Rotate clockwise  [space]: Hard drop   [z]: Rotate counter clockwise",
+%                    "[left]: Move left   [down]: Soft drop       [right]: Move right  [q]: Quit game               "]).
+% No swap for now
+-define(KEYBINDS, ["[up]: Rotate clockwise  [space]: Hard drop   [z]: Rotate counter clockwise                ",
+                   "[left]: Move left       [down]: Soft drop    [right]: Move right            [q]: Quit game"]).
 
 % -define(KEYBINDS, ["[C]: Swap piece  [↑]: Rotate clockwise  [Space]: Hard drop  [Z]: Rotate counter clockwise",
 %                    "[←]: Move left   [↓]: Soft drop         [→]: Move right     [Q]: Quit game               "]).
