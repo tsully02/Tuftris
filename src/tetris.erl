@@ -501,7 +501,7 @@ paint_players(Self={{Name, Pid, Listener}, Board}, Preview, Players, Win, GameRo
             tetris_io:draw_board(Board, Win),
             tetris_io:set_color(border),
             draw_player_names(Players, Win, 0),
-            tetris_io:draw_centered_message(4 + ?BOARD_HEIGHT, Win, ?KEYBINDS),
+            tetris_io:draw_centered_message(2 + ?BOARD_HEIGHT, Win, ?KEYBINDS),
             cecho:refresh(),
             paint_players(Self, Preview, Players, Win, GameRoom, Speed, NumCleared);
         {Pid, new_board, NewBoard} -> 
@@ -564,7 +564,7 @@ paint_players(Self={{Name, Pid, Listener}, Board}, Preview, Players, Win, GameRo
             draw_boards(Players, Win, GameRoom),
             tetris_io:set_color(border),
             draw_player_names(Players, Win, 0),
-            tetris_io:draw_centered_message(4 + ?BOARD_HEIGHT, Win, ?KEYBINDS),
+            tetris_io:draw_centered_message(2 + ?BOARD_HEIGHT, Win, ?KEYBINDS),
             cecho:refresh(),
             paint_players(Self, Preview, Players, Win, GameRoom, Speed, NumCleared);
         {GameRoom, placepiece, PlayerPid, T} -> 
@@ -583,7 +583,7 @@ paint_players(Self={{Name, Pid, Listener}, Board}, Preview, Players, Win, GameRo
             draw_boards(Players, NewWin, GameRoom),
             tetris_io:set_color(border),
             draw_player_names(Players, Win, 0),
-            tetris_io:draw_centered_message(4 + ?BOARD_HEIGHT, NewWin, ?KEYBINDS),
+            tetris_io:draw_centered_message(2 + ?BOARD_HEIGHT, NewWin, ?KEYBINDS),
             cecho:refresh(),
             paint_players(Self, Preview, Players, NewWin, GameRoom, Speed, NumCleared);
         {Pid, username} ->
@@ -606,22 +606,65 @@ print_end_game_screen(Rankings, Pid) ->
     {WinR, WinC, _, _} = NewWin,    
     tetris_io:set_color(bg),
     RankHeight = length(Rankings) + 1,
-    tetris_io:paint_box({WinR, WinC}, 20, RankHeight),
+    tetris_io:paint_box({WinR, WinC}, 19, RankHeight),
     tetris_io:set_color(ghost),
     cecho:mvaddstr(WinR, WinC, "Rankings:"),
     print_rankings(Rankings, {WinR + 1, WinC}, 0),
 
-    % tetris_io:set_color(bg),
-    % {PodiumR, PodiumC, PodiumW, PodiumH} = tetris_io:calc_game_win_coords(15, WinR + RankHeight + 1 + 10),
-    % tetris_io:paint_box({WinR + RankHeight + 1, PodiumC}, 30, 10),
+    tetris_io:set_color(bg),
+    {_, PodiumC, PodiumW, PodiumH} = tetris_io:calc_game_win_coords(16, WinR + RankHeight + 1 + 10),
+    PodiumBoxCoords = {PodiumR=WinR + RankHeight + 1, PodiumC},
+    tetris_io:paint_box(PodiumBoxCoords, 29, 10),
+
+    draw_podiums(Rankings, {PodiumR, PodiumC}, 0),
+
+    % {SilverR, SilverC} = {PodiumR + 6, PodiumC + 1},
+    % tetris_io:set_color(silver),
+    % tetris_io:paint_box({SilverR, SilverC}, 9, 4),
+    % SGuy = {SGuyR, SGuyC, SGuyW, SGuyH} = {SilverR - 3, SilverC, 5, 3},
+    % tetris_io:set_color(ghost),
+    % tetris_io:draw_centered_message(0, {SGuyR, SGuyC, SGuyW, SGuyH}, ["  o7 ", " /|  ", " / \\ "]),
+
+    % {GoldR, GoldC} = {PodiumR + 5, PodiumC + 10},
+    % tetris_io:set_color(gold),
+    % tetris_io:paint_box({PodiumR + 5, PodiumC + 10}, 9, 5),
+    % GGuy = {GGuyR, GGuyC, GGuyW, GGuyH} = {GoldR - 3, GoldC, 5, 3},
+    % tetris_io:set_color(ghost),
+    % tetris_io:draw_centered_message(0, {GGuyR, GGuyC, GGuyW, GGuyH}, [" \\o/ ", "  |  ", " / \\ "]),
+
+    % {BronzeR, BronzeC} = {PodiumR + 7, PodiumC + 19},
+    % tetris_io:set_color(bronze),
+    % tetris_io:paint_box({PodiumR + 7, PodiumC + 19}, 9, 3),
+    % BGuy = {BGuyR, BGuyC, BGuyW, BGuyH} = {BronzeR - 3, BronzeC, 5, 3},
+    % tetris_io:set_color(ghost),
+    % tetris_io:draw_centered_message(0, {BGuyR, BGuyC, BGuyW, BGuyH}, ["  o  ", " /|\\ ", " / \\ "]),
+    
 
     tetris_io:set_color(border),
     % tetris_io:draw_centered_message(0, {WinR + RankHeight + 2 + 10, PodiumC, PodiumW, PodiumH}, ["Press [Space] to continue"]),
     tetris_io:draw_centered_message(14, NewWin, ["Press [Space] to continue"]),
     cecho:refresh(),
     receive
-        {lebron, jamie} -> ok
+        {lebron, jamie} -> ok;
+        {_RefreshPid, resize} -> print_end_game_screen(Rankings, Pid)
     end.
+
+draw_podiums(_, _, 3) -> ok;
+draw_podiums([], _, _) -> ok;
+draw_podiums([{Name, _Pid} | T], {P_R, P_C}, Idx) -> 
+    {{PodiumR, PodiumC}, Color, Msg} = case Idx of 
+        0 -> {{P_R + 5, P_C + 10}, gold, [" \\o/ ", "  |  ", " / \\ "]}; 
+        1 -> {{P_R + 6, P_C + 1}, silver, ["  o7 ", " /|  ", " / \\ "]}; 
+        2 -> {{P_R + 7, P_C + 19}, bronze, ["  o  ", " /|\\ ", " / \\ "]}
+    end, 
+    tetris_io:set_color(Color),
+    tetris_io:paint_box({PodiumR, PodiumC}, 9, 5 - Idx),
+    tetris_io:draw_centered_message(4 - Idx, {PodiumR, PodiumC, 4, 5}, [Name]),
+    Guy = {PodiumR - 3, PodiumC, 5, 3},
+    tetris_io:set_color(ghost),
+    tetris_io:draw_centered_message(0, Guy, Msg),
+    draw_podiums(T, {P_R, P_C}, Idx + 1).
+
 
 print_rankings([], _, _) -> ok;
 print_rankings([{Name, _Pid} | T], Win={R, C}, Idx) ->
