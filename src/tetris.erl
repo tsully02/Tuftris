@@ -4,20 +4,6 @@
 
 -export([initiate/1, timer/2, get_game_width/1, clear_board_rows/2]).
 
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-%%% Piece Tuple Notation:
-%%% 
-%%%     {Type, Rotation, Center, Cells}
-%%% 
-%%% Type: atom denoting the type of piece, which can be
-%%%       t, square, left, right, zig, zag, line, or bigboy
-%%%       (Note: bigboy was for debugging purposes)
-%%% Rotation: integer between 0 and 3 denoting the direction (0 is original 
-%%%           direction, 1 is 90° clockwise, 2 is 180° clockwise, etc.)
-%%% Center: "Center" index of piece (not always the actual center)
-%%% Cells: Location of cells, relative to the center (add the cell values to 
-%%%        the center coords to get the cell coords)
-
 initiate(UserName) ->
     Painter = spawn_link(fun () -> painter:start(UserName) end),
     {_KeyPid, RefreshPid, _MaxRow, _MaxCol} = tetris_io:init(),

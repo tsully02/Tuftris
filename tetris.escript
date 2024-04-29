@@ -6,4 +6,4 @@ main([ClientLongName, UserName]) ->
             % io:format("~p~n", [node()]).
     tetris:initiate(UserName);
 main(_) ->
-    io:format("Usage: ./tetris.escript <longname>~n").
+    io:format("Usage: ./tetris.escript <longname> <username>~n").

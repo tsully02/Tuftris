@@ -1,3 +1,5 @@
+-define(SERVER_NODE, 'lebronjamie@vm-hw00.eecs.tufts.edu').
+
 -define(Rotation_T, [[{0, -1}, {-1, 0}, {0, 1}],
                      [{-1, 0}, {0, 1}, {1, 0}],
                      [{0, 1}, {1, 0}, {0, -1}], 
@@ -69,7 +71,6 @@
 -define(TITLE_BGD_COLOR, ?ceCOLOR_WHITE).
 -define(GHOST_COLOR, 250). % refers to the color pair
 
--define(SERVER_NODE, 'lebronjamie@vm-hw00.eecs.tufts.edu').
 
 -define(TITLE_MSG, ["Press:", "1 - Single player", "2 - Create a multiplayer room", "3 - Join a multiplayer room", "q - Quit"]).
 

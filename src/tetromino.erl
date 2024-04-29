@@ -4,6 +4,20 @@
 
 -include_lib("tetris.hrl").
 
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%% Piece Tuple Notation:
+%%% 
+%%%     {Type, Rotation, Center, Cells}
+%%% 
+%%% Type: atom denoting the type of piece, which can be
+%%%       t, square, left, right, zig, zag, line, or bigboy
+%%%       (Note: bigboy was for debugging purposes)
+%%% Rotation: integer between 0 and 3 denoting the direction (0 is original 
+%%%           direction, 1 is 90° clockwise, 2 is 180° clockwise, etc.)
+%%% Center: "Center" index of piece (not always the actual center)
+%%% Cells: Location of cells, relative to the center (add the cell values to 
+%%%        the center coords to get the cell coords)
+
 % Creation
 -export([generate/2, get_ghost/2]).
 % Getting info

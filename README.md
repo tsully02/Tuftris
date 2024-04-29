@@ -21,10 +21,22 @@ Build
 
 Run 
 -----
+    Client:
     $ ./tetris
+    Server:
+    
 
-
-
+File Listing
+------------
+tetris.erl: Main file, core game logic
+tetris_io.erl: Low level interfacing with cecho
+tetromino.erl: Functionality for creating and manipulating tetrominos (pieces)
+board.erl: Functionality for manipulating game boards
+tetris.hrl: Shared header for constants
+server.erl: Game master server, in change of managing rooms
+game.erl: Game room server
+painter.erl: Code for the painter process that is in change of tracking
+             everything that needs to be drawn and drawing it.
 
 
 Commented out code:
