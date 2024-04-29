@@ -1,10 +1,8 @@
--module(tetromino).
-
-% Tetromino module - Functionality for creating and manipulating tetrominos
-
--include_lib("tetris.hrl").
-
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%% tetromino.erl
+%%%
+%%% Tetromino module: Functionality for creating and manipulating tetrominos
+%%% 
 %%% Piece Tuple Notation:
 %%% 
 %%%     {Type, Rotation, Center, Cells}
@@ -17,6 +15,10 @@
 %%% Center: "Center" index of piece (not always the actual center)
 %%% Cells: Location of cells, relative to the center (add the cell values to 
 %%%        the center coords to get the cell coords)
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+-module(tetromino).
+-include_lib("tetris.hrl").
+
 
 % Creation
 -export([generate/2, get_ghost/2]).

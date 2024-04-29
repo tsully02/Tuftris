@@ -1,9 +1,22 @@
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%% game.erl
+%%% 
+%%% Game Module: contains implementation of a game room that connects all 
+%%%              players in a game
+%%% 
+%%% Important Data Structures
+%%%     - Players: {Name, ClientPid, PainterPid}
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 -module(game).
 
 % -include_lib("../cecho/include/cecho.hrl").
 -include_lib("tetris.hrl").
 
+% Game room code
+
 -export([init/4]).
+
+-type player() :: list({list(integer()), pid(), pid()}).
 
 
 %%% init called by server
@@ -26,11 +39,15 @@
 %%%
 %%%
 
+%%% init/4 runs a game room, returns when the game is over
+-spec init(atom(), list(integer()), integer(),
+           {list(integer), pid(), pid()}) -> ok.
+
 init(ServerInfo, RoomName, NumPlayers,
-     First={_PlayerName, _PlayerPid, _PlayerListener}) -> 
+     First={_PlayerName, _PlayerPid, _PlayerPainter}) -> 
     io:format("~p ~p: ~p joined the game!~n", [RoomName, self(), First]),
     Players = receive_players([First], NumPlayers, 1),
-    send_message_to_all_listeners({self(), players, Players}, Players),
+    send_message_to_all_painters({self(), players, Players}, Players),
     send_message_to_all({self(), start}, Players),
     io:format("Num players: ~p~n", [length(Players)]),
     io:format("Players: ~p~n", [Players]),
@@ -42,11 +59,24 @@ init(ServerInfo, RoomName, NumPlayers,
     server:game_over(ServerInfo, RoomName),
     ok.
 
-send_message_to_all_listeners(Message, Players) ->
+
+%%% send_message_to_all_painters/2 sends a message to every painter
+-spec send_message_to_all_painters(any(), [player()]) -> ok.
+
+send_message_to_all_painters(Message, Players) ->
     lists:foreach(fun ({_, _, Pid}) -> Pid ! Message end, Players).
+
+
+%%% send_message_to_all/2 sends a message to every client
+-spec send_message_to_all(any(), [player()]) -> ok.
 
 send_message_to_all(Message, Players) ->
     lists:foreach(fun ({_, Pid, _}) -> Pid ! Message end, Players).
+
+
+%%% send_message/3 sends a message to every client except one (generally the one
+%%%                the message came from)
+-spec send_message(any(), [player(),...], pid()) -> ok.
 
 send_message(Message, [{_, From, _} | Tail], From) ->
     lists:foreach(fun ({_, Pid, _}) -> Pid ! Message end, Tail);
@@ -54,20 +84,30 @@ send_message(Message, [{_, Head, _} | Tail], From) ->
     Head ! Message,
     send_message(Message, Tail, From).
 
-send_listener(Message, [{_, From, _} | Tail], From) ->
+
+%%% send_painter/3 sends a message to every painter except one (generally the
+%%%                client the message came from). The from argument should be
+%%%                the client PID to exclude, NOT the painter PID
+-spec send_painter(any(), [player(),...], pid()) -> ok.
+
+send_painter(Message, [{_, From, _} | Tail], From) ->
     lists:foreach(fun ({_, _, Pid}) -> Pid ! Message end, Tail);
-send_listener(Message, [{_, _Head, Listener} | Tail], From) ->
-    Listener ! Message,
-    send_listener(Message, Tail, From).
+send_painter(Message, [{_, _Head, Painter} | Tail], From) ->
+    Painter ! Message,
+    send_painter(Message, Tail, From).
+
+
+%%% receive_players/3 waits until it has received info for MaxPlayers players,
+%%%                   then returns the list of players received
+-spec receive_players([player()], integer(),
+                      integer()) -> [player()].
 
 receive_players(Players, MaxPlayers, MaxPlayers) ->
     Players;
 receive_players(Players, MaxPlayers, NumPlayers) ->
     receive 
-        {join_room, Player={_PlayerName, _PlayerPid, _Listener}} -> 
+        {join_room, Player={_PlayerName, _PlayerPid, _Painter}} -> 
             io:format("~p: ~p joined the game!~n", [self(), Player]),
-            % Player = {PlayerName, PlayerPid},
-            % Player = {PlayerName, PlayerPid, Listener},
             NewPlayers = [Player | Players],
             receive_players(NewPlayers, MaxPlayers, NumPlayers + 1);
         M ->
@@ -105,18 +145,13 @@ delete_player(Pid, Rows) ->
 
 receive_messages(Players, Rows, NumCurrPlayers, NotPlaying) ->
     receive
-        % {newpiece, T, PInfo} ->
-        %     % io:format("new piece!~n"),
-        %     send_message({newpiece, PInfo, T}, Players, PInfo),
-        %     receive_messages(Players, Rows, NumCurrPlayers, NotPlaying);
         {rowcleared, ClearedRows, PInfo} ->
-            % io:format("clearing row ~p~n", [ClearedRows]),
             NewRows = check_rows(Players, ClearedRows, PInfo, Rows,
                                  NumCurrPlayers),
             receive_messages(Players, NewRows, NumCurrPlayers, NotPlaying);
         {placepiece, T, PInfo} ->
             io:format("Piece placed!~n"),
-            send_listener({self(), placepiece, PInfo, T}, Players, PInfo),
+            send_painter({self(), placepiece, PInfo, T}, Players, PInfo),
             receive_messages(Players, Rows, NumCurrPlayers, NotPlaying);
         {playerlost, PInfo} ->
             NewNum = NumCurrPlayers - 1,
@@ -125,7 +160,7 @@ receive_messages(Players, Rows, NumCurrPlayers, NotPlaying) ->
                 1 -> {Players, add_winner(Players,
                                           [get_name_pid(Players, PInfo) |
                                            NotPlaying])};
-                _ -> send_listener({self(), clearplayer, PInfo}, Players,
+                _ -> send_painter({self(), clearplayer, PInfo}, Players,
                                    PInfo),
                 NewRows = check_rows(Players, [], PInfo,
                                      delete_player(PInfo, Rows), NewNum),
@@ -137,7 +172,7 @@ receive_messages(Players, Rows, NumCurrPlayers, NotPlaying) ->
             Exists = lists:keyfind(get_name_pid(Players, PInfo), 2,
                                    lists:enumerate(NotPlaying)),
             {NewNum, NewNotPlaying} = case Exists of 
-                false -> send_listener({self(), clearplayer, PInfo}, Players,
+                false -> send_painter({self(), clearplayer, PInfo}, Players,
                                        PInfo),
                 {NumCurrPlayers - 1, [PInfo | NotPlaying]};
                 _ -> io:format("Already lost!~n"),

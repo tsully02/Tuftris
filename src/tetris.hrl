@@ -77,9 +77,6 @@
 -define(KEYBINDS, ["[q]: Quit game      [up]: Rotate clockwise  [space]: Hard drop   [z]: Rotate counter clockwise",
                    "[left]: Move left   [down]: Soft drop       [right]: Move right                               "]).
 
-% -define(KEYBINDS, ["[C]: Swap piece  [↑]: Rotate clockwise  [Space]: Hard drop  [Z]: Rotate counter clockwise",
-%                    "[←]: Move left   [↓]: Soft drop         [→]: Move right     [Q]: Quit game               "]).
-
 -define(TITLE_LOGO, ["[][][][][]   []    []   [][][][]   [][][][][]   [][][][]   [][][][][]   [][][][]",
                      "    []       []    []   []             []       []    []       []       []      ",
                      "    []       []    []   [][][]         []       [][][][]       []       [][][][]",

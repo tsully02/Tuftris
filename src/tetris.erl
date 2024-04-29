@@ -1,3 +1,28 @@
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%% tetris.erl
+%%%
+%%% Tetris/Client Module:
+%%%     - includes the logic for the startup screen, and creating/joining a 
+%%%       room
+%%%     - includes the game logic for the client side, such as processing 
+%%%       keyboard input, checking for cleared rows, and keeping the state 
+%%%       of the game
+%%% 
+%%% As the game runs, this module has to keep track of several things. Here is 
+%%% a list of the most common ones (the names persist throughout all functions):
+%%%     - Painter: the pid of the painter process
+%%%     - TimerPid: the pid of the timer process
+%%%     - RefreshPid: the pid of the window resize-checking process
+%%%     - GameRoom: the pid of the game room, which is currently being played
+%%%     - Tetromino: the player's tetromino that is currently falling/in play,
+%%%                  which is created and updated by the Tetromino Module
+%%%     - Board: the current state of the player's board, as represented by 
+%%%              the Board Module
+%%% 
+%%% This file is organized by the flow of the program: the functions that 
+%%% handle the title screen and creating/joining rooms are first, then the 
+%%% game logic functions, then miscellaneous functions.
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 -module(tetris).
 -include_lib("../cecho/include/cecho.hrl").
 -include_lib("tetris.hrl").
@@ -187,7 +212,7 @@ start_game(GameRoom, NumPlayers, Painter, ok, RefreshPid) ->
 
 %%% wait_for_input/4
 wait_for_input(Tetromino, Preview, Board,
-               Pids={TimerPid, GameRoom, Painter,RefreshPid}) ->
+               Pids={TimerPid, GameRoom, Painter, RefreshPid}) ->
     receive
         {TimerPid, timer} ->
             TGL_Pids = {TimerPid, GameRoom, Painter},
