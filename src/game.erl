@@ -13,7 +13,8 @@
 %%%     calls start_game type function
 %%% 
 %%% wait_for_game
-%%%     listens for messages from server, waiting for all players to enter the game room
+%%%     listens for messages from server, waiting for all players to enter
+%%%     the game room
 %%% 
 %%% start_game
 %%%     enters game loop, listening for messages from players
@@ -25,14 +26,17 @@
 %%%
 %%%
 
-init(ServerInfo, RoomName, NumPlayers, First={_PlayerName, _PlayerPid, _PlayerListener}) -> 
+init(ServerInfo, RoomName, NumPlayers,
+     First={_PlayerName, _PlayerPid, _PlayerListener}) -> 
     io:format("~p ~p: ~p joined the game!~n", [RoomName, self(), First]),
     Players = receive_players([First], NumPlayers, 1),
     send_message_to_all_listeners({self(), players, Players}, Players),
     send_message_to_all({self(), start}, Players),
     io:format("Num players: ~p~n", [length(Players)]),
     io:format("Players: ~p~n", [Players]),
-    {NewPlayers, Rankings} = receive_messages(Players, lists:duplicate(?BOARD_HEIGHT, []), length(Players), []),
+    {NewPlayers, Rankings} =
+        receive_messages(Players, lists:duplicate(?BOARD_HEIGHT, []),
+                         length(Players), []),
     io:format("Game over! ~p~n", [NewPlayers]),
     send_message_to_all({self(), game_over, Rankings}, NewPlayers),
     server:game_over(ServerInfo, RoomName),
@@ -90,7 +94,9 @@ check_rows(Players, ClearedRows, ClearPlayer, Rows, NumCurrPlayers) ->
                                 end, lists:enumerate(UpdatedRows)),
     send_message_to_all({clearrow, RowsToSend}, Players),
     io:format("rows cleared: ~p~n", [RowsToSend]),
-    NewRows = lists:filter(fun (RowPlayers) -> length(RowPlayers) /= NumCurrPlayers end, UpdatedRows),
+    NewRows = lists:filter(fun (RowPlayers) ->
+                                length(RowPlayers) /= NumCurrPlayers
+                           end, UpdatedRows),
     io:format("new rows: ~p~n", [NewRows]),
     lists:append(lists:duplicate(?BOARD_HEIGHT - length(NewRows), []), NewRows).
 
@@ -105,7 +111,8 @@ receive_messages(Players, Rows, NumCurrPlayers, NotPlaying) ->
         %     receive_messages(Players, Rows, NumCurrPlayers, NotPlaying);
         {rowcleared, ClearedRows, PInfo} ->
             % io:format("clearing row ~p~n", [ClearedRows]),
-            NewRows = check_rows(Players, ClearedRows, PInfo, Rows, NumCurrPlayers),
+            NewRows = check_rows(Players, ClearedRows, PInfo, Rows,
+                                 NumCurrPlayers),
             receive_messages(Players, NewRows, NumCurrPlayers, NotPlaying);
         {placepiece, T, PInfo} ->
             io:format("Piece placed!~n"),
@@ -115,16 +122,23 @@ receive_messages(Players, Rows, NumCurrPlayers, NotPlaying) ->
             NewNum = NumCurrPlayers - 1,
             case NewNum of 
                 0 -> {Players, [get_name_pid(Players, PInfo) | NotPlaying]};
-                1 -> {Players, add_winner(Players, [get_name_pid(Players, PInfo) | NotPlaying])};
-                _ -> send_listener({self(), clearplayer, PInfo}, Players, PInfo),
-                NewRows = check_rows(Players, [], PInfo, delete_player(PInfo, Rows), NewNum),
-                receive_messages(Players, NewRows, NewNum, [get_name_pid(Players, PInfo) | NotPlaying])
+                1 -> {Players, add_winner(Players,
+                                          [get_name_pid(Players, PInfo) |
+                                           NotPlaying])};
+                _ -> send_listener({self(), clearplayer, PInfo}, Players,
+                                   PInfo),
+                NewRows = check_rows(Players, [], PInfo,
+                                     delete_player(PInfo, Rows), NewNum),
+                receive_messages(Players, NewRows, NewNum,
+                                 [get_name_pid(Players, PInfo) | NotPlaying])
             end;
         {playerquit, PInfo} ->
             NewPlayers = lists:keydelete(PInfo, 2, Players),
-            Exists = lists:keyfind(get_name_pid(Players, PInfo), 2, lists:enumerate(NotPlaying)),
+            Exists = lists:keyfind(get_name_pid(Players, PInfo), 2,
+                                   lists:enumerate(NotPlaying)),
             {NewNum, NewNotPlaying} = case Exists of 
-                false -> send_listener({self(), clearplayer, PInfo}, Players, PInfo),
+                false -> send_listener({self(), clearplayer, PInfo}, Players,
+                                       PInfo),
                 {NumCurrPlayers - 1, [PInfo | NotPlaying]};
                 _ -> io:format("Already lost!~n"),
                 {NumCurrPlayers, NotPlaying}
@@ -133,7 +147,8 @@ receive_messages(Players, Rows, NumCurrPlayers, NotPlaying) ->
             case NewNum of 
                 0 -> {NewPlayers, NewNotPlaying};
                 1 -> {NewPlayers, add_winner(Players, NewNotPlaying)};
-                _ -> NewRows = check_rows(NewPlayers, [], PInfo, delete_player(PInfo, Rows), NewNum),
+                _ -> NewRows = check_rows(NewPlayers, [], PInfo,
+                                          delete_player(PInfo, Rows), NewNum),
                 receive_messages(NewPlayers, NewRows, NewNum, NewNotPlaying)
             end;
         stop -> ok;
@@ -144,7 +159,9 @@ receive_messages(Players, Rows, NumCurrPlayers, NotPlaying) ->
 
 add_winner(Players, Losers) ->
     io:format("Players: ~p~n, Losers: ~p~n", [Players, Losers]),
-    [{WName, WPid, _}] = lists:foldl(fun ({_, P}, Acc) -> lists:keydelete(P, 2, Acc) end, Players, Losers),
+    [{WName, WPid, _}] = lists:foldl(fun ({_, P}, Acc) ->
+                                        lists:keydelete(P, 2, Acc)
+                                     end, Players, Losers),
     [{WName, WPid} | Losers].
 
 get_name_pid([], _) -> {error, doesnotexist};

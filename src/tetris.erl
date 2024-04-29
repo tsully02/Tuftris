@@ -43,7 +43,8 @@ title_screen(UserName, Painter) ->
 title_screen_keyboard_loop(UserName, Win, Painter) ->
     receive
         {_Pid, key, $1} -> 
-            GameRoom = server:create_room(?SERVER_NODE, UserName, UserName, 1, Painter),
+            GameRoom = server:create_room(?SERVER_NODE, UserName, UserName, 1,
+                                          Painter),
             case GameRoom of 
                 already_exists -> 
                     Msg = "You are already playing a solo game! :P",
@@ -60,7 +61,8 @@ title_screen_keyboard_loop(UserName, Win, Painter) ->
             Painter ! {lebron, jamie},
             {quit, UserName};
         {_Pid, resize} ->
-            NewWin = tetris_io:calc_win_coords(?TITLESCR_WIDTH, ?TITLESCR_HEIGHT),
+            NewWin = tetris_io:calc_win_coords(?TITLESCR_WIDTH,
+                                               ?TITLESCR_HEIGHT),
             tetris_io:draw_title_screen(NewWin, ?TITLE_MSG),
             title_screen_keyboard_loop(UserName, NewWin, Painter);
         % {_Pid, key, $t} -> tboxtest;
@@ -76,7 +78,8 @@ create_multi_room(UserName, Win, Painter) ->
     NumPlayers = input_num_players(NumPlayersMsg),
     case NumPlayers of
         0 -> title_screen_keyboard_loop(UserName, Win, Painter);
-        _ ->  GameRoom = server:create_room(?SERVER_NODE, RoomName, UserName, NumPlayers, Painter),
+        _ ->  GameRoom = server:create_room(?SERVER_NODE, RoomName, UserName,
+                                            NumPlayers, Painter),
             case GameRoom of 
                 already_exists -> 
                     Msg = lists:append(["Room ", RoomName, " already exists!"]),
@@ -111,7 +114,8 @@ input_num_players(Msg) ->
         {_Pid, key, $q} -> 
             0;
         {_Pid, resize} ->
-            NewWin = tetris_io:calc_win_coords(?TITLESCR_WIDTH, ?TITLESCR_HEIGHT),
+            NewWin = tetris_io:calc_win_coords(?TITLESCR_WIDTH,
+                                               ?TITLESCR_HEIGHT),
             tetris_io:draw_title_screen(NewWin, Msg),
             input_num_players(Msg);
         {_Pid, key, _} -> input_num_players(Msg)
@@ -129,7 +133,8 @@ receive_space(Msg) ->
     receive
         {_Pid, key, ?KEY_SPACE}-> ok;
         {_Pid, resize} ->
-            NewWin = tetris_io:calc_win_coords(?TITLESCR_WIDTH, ?TITLESCR_HEIGHT),
+            NewWin = tetris_io:calc_win_coords(?TITLESCR_WIDTH,
+                                               ?TITLESCR_HEIGHT),
             tetris_io:draw_title_screen(NewWin, Msg),
             receive_space(Msg);
         _ -> receive_space(Msg)
@@ -165,7 +170,8 @@ wait_to_start(TitleWin, GameRoom, Msg) ->
             io:format("Thanks for playing!~n"),
             quit;
         {_RefreshPid, resize} ->
-            NewWin = tetris_io:calc_win_coords(?TITLESCR_WIDTH, ?TITLESCR_HEIGHT),
+            NewWin = tetris_io:calc_win_coords(?TITLESCR_WIDTH,
+                                               ?TITLESCR_HEIGHT),
             tetris_io:draw_title_screen(NewWin, Msg),
             wait_to_start(NewWin, GameRoom, Msg);
         _ -> wait_to_start(TitleWin, GameRoom, Msg)
@@ -194,7 +200,8 @@ start_game(GameRoom, NumPlayers, Painter, ok, RefreshPid) ->
     wait_for_input(T, Preview, Board, Pids).
 
 %%% wait_for_input/4
-wait_for_input(Tetromino, Preview, Board, Pids={TimerPid, GameRoom, Painter, RefreshPid}) ->
+wait_for_input(Tetromino, Preview, Board,
+               Pids={TimerPid, GameRoom, Painter,RefreshPid}) ->
     receive
         {TimerPid, timer} ->
             TGL_Pids = {TimerPid, GameRoom, Painter},
@@ -296,9 +303,11 @@ process_key(Key, Tetromino, Preview, Board, Pids={Timer, GameRoom, Painter}) ->
                             Timer ! {self(), killtimer},
                             NewTimer = new_timer(self(), Painter),
                             check_clear_row(Tetromino, NewBoard, GameRoom),
-                            {NewTetromino, NewPreview} = next_piece(Preview, GameRoom),
+                            {NewTetromino, NewPreview} =
+                                next_piece(Preview, GameRoom),
                             Painter ! {self(), draw_preview, NewPreview},
-                            Painter ! {self(), draw_tetromino, Tetromino, NewTetromino},
+                            Painter ! {self(), draw_tetromino, Tetromino,
+                                       NewTetromino},
                             {NewTetromino, NewPreview, NewBoard, NewTimer};
                         _ -> {Tetromino, Preview, Board, Timer}
                     end
@@ -320,7 +329,8 @@ lost_input(GameRoom, Painter, RefreshPid, TimerPid) ->
         {clearrow, Rows} -> 
             Painter ! {self(), clear_other_rows, Rows},
             lost_input(GameRoom, Painter, RefreshPid, TimerPid);
-        {GameRoom, game_over, Rankings} -> end_game_screen(Rankings, GameRoom, Painter, RefreshPid, TimerPid);
+        {GameRoom, game_over, Rankings} -> 
+            end_game_screen(Rankings, GameRoom, Painter, RefreshPid, TimerPid);
         {_Pid, key, $q} -> quit_game(GameRoom, Painter, RefreshPid, self())
     end.
 
@@ -383,7 +393,7 @@ add_horiz_line_c(Row, Col, Length, ColorNum) ->
 
 new_timer(Pid, Painter) ->
     Painter ! {self(), speed},
-    Speed = receive
+    Speed = receive 
         {Painter, speed, S} -> S
     end,
     spawn(fun () -> timer(Pid, Speed) end).
@@ -393,7 +403,9 @@ check_clear_row({Type, Rotation, Center, Cells}, Board, GameRoom) ->
     Sorted = lists:sort(fun ({R1, _}, {R2, _}) -> R1 < R2 end, Placed),
     Rows = lists:foldl(
         fun ({Row, _Col}, Rows) ->
-            case lists:all(fun (CurrCol) -> board:is_filled(Board, Row, CurrCol) end, lists:seq(0, ?BOARD_WIDTH - 1))
+            IsFilled = fun (CurrCol) -> 
+                           board:is_filled(Board, Row, CurrCol) end,
+            case lists:all(IsFilled, lists:seq(0, ?BOARD_WIDTH - 1))
             of
                 true -> [Row | Rows];
                 false -> Rows
@@ -440,7 +452,8 @@ blockedOut() ->
     blocked.
 
 clear_board_rows(Rows, Board) ->
-    lists:foldl(fun (R, CurrBoard) -> board:remove_row(CurrBoard, R) end, Board, Rows).
+    lists:foldl(fun (R, CurrBoard) -> board:remove_row(CurrBoard, R) end,
+                Board, Rows).
 
 clear_row(Rows, Board, Painter, Tetromino) ->
     NewBoard = clear_board_rows(Rows, Board),
@@ -449,9 +462,6 @@ clear_row(Rows, Board, Painter, Tetromino) ->
         {Painter, continue} -> ok
     end,
     NewBoard. 
-
-
-
 
 
 %%% TODOs:

@@ -1,42 +1,58 @@
 -module(tetromino).
 
+% Tetromino module - Functionality for creating and manipulating tetrominos
+
 -include_lib("tetris.hrl").
 
--export([get_all_coords/1, get_abs_coords/1, rotate/2, generate/2, check_bounds/1, type/1, check_collision/2, move_left/1, move_right/1, move_down/1, move_to_lowest_position/2, get_ghost/2, change_center/2]).
+% Creation
+-export([generate/2, get_ghost/2]).
+% Getting info
+-export([get_all_coords/1, get_abs_coords/1, type/1, check_collision/2]).
+% Moving
+-export([rotate/2, check_bounds/1, move_left/1, move_right/1, move_down/1,
+         move_to_lowest_position/2, change_center/2]).
 
 
 % Convert a tetromino to a list of board coordinates it takes up
 get_all_coords({_Type, _Rotation, {CRow, CCol}, Cells}) ->
     % io:format("CRow: ~p, CCol: ~p~n", [CRow, CCol]),
-    WinCells = lists:map(fun ({Row, Col}) -> {CRow + Row, CCol + Col} end, Cells),
+    WinCells = lists:map(
+        fun ({Row, Col}) ->
+            {CRow + Row, CCol + Col}
+        end,
+        Cells),
     [{CRow, CCol} | WinCells].
 
+% Convert a tetromino to a list of character coordinates it takes up
+% (relative to the board)
 get_abs_coords({_Type, _Rotation, {CRow, CCol}, Cells}) ->
-    % io:format("CRow: ~p, CCol: ~p~n", [CRow, CCol]),
-    WinCells = lists:map(fun ({Row, Col}) -> {CRow + Row, CCol + Col * 2} end, Cells),
+    WinCells = lists:map(
+        fun ({Row, Col}) ->
+            {CRow + Row, CCol + Col * 2}
+        end,
+        Cells),
     [{CRow, CCol} | WinCells].
 
+% Move a tetromino so its center is at the given coordinates
 change_center({Type, Rotation, _, Cells}, {NewR, NewC}) ->
     {Type, Rotation, {NewR, NewC}, Cells}.
 
+% Get the type of a piece
 type(Piece) -> element(1, Piece).
 
 
-%%% generate(Pid, Time, {Row, Col})
+%%% generate({Row, Col}, type)
 %%% generates a random new tetromino
+%%% Type can be something that does not name a type (like 'random) for a 
+%%% random piece
 %%% TODO: Make less random :)
-%%% 
-%%% the double code this is temporary i swear...
-generate({Row, Col}, line) ->
-    {line, 0, {Row, Col}, get_rot(line, 0)};
-generate({Row, Col}, bigboy) ->
-    {bigboy, 0, {Row, Col}, get_rot(bigboy, 0)};
-generate({Row, Col}, _) ->
+generate({Row, Col}, Type) when Type == line; Type == bigboy ->
+    {Type, 0, {Row, Col}, get_rot(Type, 0)};
+generate({Row, Col}, _Type) ->
     Tetrominos = [t, line, zigz, zags, square, left, right],
     % random:seed(erlang:now()),
     Type = lists:nth(rand:uniform(7), Tetrominos),
-    T = {Type, 0, {Row, Col}, get_rot(Type, 0)},
-    T.
+    {Type, 0, {Row, Col}, get_rot(Type, 0)}.
 
 
 % rotates a tetromino
@@ -85,48 +101,61 @@ get_rot(Type, Rotation) ->
     lists:nth(Rotation + 1, List).
 
 %%% change_line_center({CenterRow, CenterCol}, ChangeIndex)
-%%% 
+%%% Adjust the center of a line based on the change index defined by the
+%%% rotation
 change_line_center({CenterRow, CenterCol}, ChangeIndex) ->
     List = ?Rotation_Line_Centers,
     {ChangeRow, ChangeCol} = lists:nth(ChangeIndex + 1, List),
     {CenterRow + ChangeRow, CenterCol + ChangeCol}.
 
-% Take a tetromino and adjust its bounds to keep it in bounds, then return the new tetromino
+% Take a tetromino and adjust its coordinates to keep it in bounds,
+% then return the new tetromino
 check_bounds({Type, Rotation, {CRow, CCol}, Cells}) ->
     Tet = {Type, Rotation, {CRow, CCol}, Cells},
     PredL = fun ({_Row, Col}) -> Col < 0 end,
     PredR = fun ({_Row, Col}) -> Col > ?BOARD_WIDTH - 1 end,
-    Fun = case lists:map(fun (Pred) -> lists:any(Pred, get_all_coords(Tet)) end, [PredL, PredR]) of
-        [true, _] -> fun (T) -> check_bounds(move_right(T)) end;
-        [_, true] -> fun (T) -> check_bounds(move_left(T)) end;
-        _ -> fun (T) -> T end
-    end,
+    Fun =
+        case lists:map(
+            fun (Pred) ->
+                lists:any(Pred, get_all_coords(Tet))
+            end, [PredL, PredR])
+        of
+            [true, _] -> fun (T) -> check_bounds(move_right(T)) end;
+            [_, true] -> fun (T) -> check_bounds(move_left(T)) end;
+            _ -> fun (T) -> T end
+        end,
     Fun(Tet).
 
-% Return whether a tetromino is overlapping any filled cells on the board or against the bottom
+% Return whether a tetromino is overlapping any filled cells on the board or
+% below the bottom
 check_collision({Type, Rotation, {CRow, CCol}, Cells}, Board) ->
     T = {Type, Rotation, {CRow, CCol}, Cells},
     TCoords = get_all_coords(T),
     BottomPred = fun ({Row, _Col}) -> Row > ?BOARD_HEIGHT - 1 end,
     OnBottom = lists:any(BottomPred, TCoords),
-    OnBottom orelse lists:any(fun ({Row, Col}) -> board:is_filled(Board, Row, Col) end, TCoords).
+    % Short circuit here to avoid passing invalid rows to board:is_filled
+    OnBottom orelse lists:any(fun ({Row, Col}) -> 
+                                  board:is_filled(Board, Row, Col)
+                              end,
+                              TCoords).
 
 
+% Move a tetromino left one cell
 move_left({Type, Rotation, {CenterRow, CenterCol}, Cells}) ->
-    move_tetromino({CenterRow, CenterCol - 1}, {Type, Rotation, {CenterRow, CenterCol}, Cells}).
+    change_center({Type, Rotation, {CenterRow, CenterCol}, Cells},
+                  {CenterRow, CenterCol - 1}).
 
+% Move a tetromino down one cell
 move_down({Type, Rotation, {CenterRow, CenterCol}, Cells}) ->
-    move_tetromino({CenterRow + 1, CenterCol}, {Type, Rotation, {CenterRow, CenterCol}, Cells}).
+    change_center({Type, Rotation, {CenterRow, CenterCol}, Cells},
+                  {CenterRow + 1, CenterCol}).
 
-% move_up({Type, Rotation, {CenterRow, CenterCol}, Cells}) ->
-%     move_tetromino({CenterRow - 1, CenterCol}, {Type, Rotation, {CenterRow, CenterCol}, Cells}).
-
+% Move a tetromino right one cell
 move_right({Type, Rotation, {CenterRow, CenterCol}, Cells}) ->
-    move_tetromino({CenterRow, CenterCol + 1}, {Type, Rotation, {CenterRow, CenterCol}, Cells}).
+    change_center({Type, Rotation, {CenterRow, CenterCol}, Cells},
+                  {CenterRow, CenterCol + 1}).
 
-move_tetromino({Row, Col}, {Type, Rotation, _Center, Cells}) ->
-    {Type, Rotation, {Row, Col}, Cells}.
-
+% Move a tetromino to the lowest position without it overlapping any other piece
 move_to_lowest_position(Tetromino, Board) ->
     DownTetromino = tetromino:move_down(Tetromino),
     case tetromino:check_collision(DownTetromino, Board) of
@@ -134,5 +163,7 @@ move_to_lowest_position(Tetromino, Board) ->
         false -> move_to_lowest_position(DownTetromino, Board)
     end.
 
+% Get the "ghost" of a tetromino, i.e. the tetromino that should be drawn to
+% show the white "ghost" piece
 get_ghost(Tetromino, Board) ->
     tetromino:move_to_lowest_position(Tetromino, Board).

@@ -11,7 +11,8 @@
 % Drawing functions
 -export([draw_board/2, draw_tetromino/2, delete_tetromino/3,
          draw_title_screen/2, draw_centered_message/3, draw_ghost/3,
-         paint_screen/1, paint_box/3, draw_preview/3]).
+         paint_screen/1, paint_box/3, draw_preview/3,
+         draw_end_game_screen/1]).
 % Animations/Interactive
 -export([text_box/3, animate_clear_row/4]).
 % Utilities
@@ -217,9 +218,6 @@ set_color(Type) ->
 %%% pair_creation()
 %%% Generates color pairs that will be used throughout the program
 pair_creation() ->
-    % TColors = [?T_COLOR, ?SQUARE_COLOR, ?LEFT_COLOR, ?RIGHT_COLOR, ?ZIGZ_COLOR, 
-    %     ?ZAGS_COLOR, ?LINE_COLOR],
-    
     % lists:foldl(fun (T, Acc) -> cecho:init_pair()
     ok = cecho:start_color(),
     ok = cecho:init_pair(1, ?ceCOLOR_BLACK, ?ceCOLOR_RED),
@@ -377,3 +375,56 @@ text_box({WinY, WinX, WinWidth, WinHeight}, Width, Row) ->
     ok = cecho:noecho(),
     Input.
 
+% Draw the ranking screen
+draw_end_game_screen(Rankings) ->
+    cecho:refresh(),
+    paint_screen(border),
+    NewWin = calc_win_coords(10, ?BOARD_HEIGHT),
+    {WinR, WinC, _, _} = NewWin,    
+    set_color(bg),
+    RankHeight = length(Rankings) + 1,
+    paint_box({WinR, WinC}, 19, RankHeight),
+    set_color(ghost),
+    cecho:mvaddstr(WinR, WinC, "Rankings:"),
+    print_rankings(Rankings, {WinR + 1, WinC}, 0),
+
+    set_color(bg),
+    {_, PodiumC, _, _} =
+        calc_win_coords(16, WinR + RankHeight + 1 + 10),
+    PodiumBoxCoords = {PodiumR=WinR + RankHeight + 1, PodiumC},
+    paint_box(PodiumBoxCoords, 29, 10),
+
+    draw_podiums(Rankings, {PodiumR, PodiumC}, 0),
+    set_color(border),
+    draw_centered_message(15, NewWin, ["Press [Space] to continue"]),
+    cecho:refresh().
+
+% Draw podiums given players, the row and column, and the ranking index
+draw_podiums(_, _, 3) -> ok;
+draw_podiums([], _, _) -> ok;
+draw_podiums([{Name, _Pid} | T], {P_R, P_C}, Idx) -> 
+    {{PodiumR, PodiumC}, Color, Msg} = case Idx of 
+        0 -> {{P_R + 5, P_C + 10}, gold, [" \\o/ ", "  |  ", " / \\ "]}; 
+        1 -> {{P_R + 6, P_C + 1}, silver, ["  o7 ", " /|  ", " / \\ "]}; 
+        2 -> {{P_R + 7, P_C + 19}, bronze, ["  o  ", " /|\\ ", " / \\ "]}
+    end, 
+    set_color(Color),
+    paint_box({PodiumR, PodiumC}, 9, 5 - Idx),
+    draw_centered_message(4 - Idx, {PodiumR, PodiumC, 4, 5}, [Name]),
+    Guy = {PodiumR - 3, PodiumC, 5, 3},
+    set_color(ghost),
+    draw_centered_message(0, Guy, Msg),
+    draw_podiums(T, {P_R, P_C}, Idx + 1).
+
+% Print the ranking display
+print_rankings([], _, _) -> ok;
+print_rankings([{Name, _Pid} | T], Win={R, C}, Idx) ->
+    case Idx of
+        0 -> set_color(gold_text);
+        1 -> set_color(silver_text);
+        2 -> set_color(bronze_text);
+        _ -> set_color(ghost)
+    end, 
+    Str = " " ++ integer_to_list(Idx + 1) ++ ". " ++ Name,
+    cecho:mvaddstr(R, C, Str),
+    print_rankings(T, {R + 1, C}, Idx + 1).

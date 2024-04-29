@@ -97,22 +97,6 @@ add_player(RoomName, Player, [H | T]) ->
 -spec handle_cast(tuple() | atom(), list()) -> tuple().
 handle_cast(stop, State) ->
     {stop, normal, State}.
-% handle_cast({subscribe, RoomName, User}, State) -> 
-%     io:format("User ~p subscribed!~n", [User]),
-%     case lists:keyfind(RoomName, 1, State) of
-%         {RoomName, Users} -> NewState = lists:delete({RoomName, Users}, State),
-%                              {noreply, [{RoomName, [User | Users]} | NewState]};
-%         false             -> {noreply, [{RoomName, [User]} | State]}
-%     end;
-% handle_cast({unsubscribe, RoomName, User}, State) ->
-%     case lists:keyfind(RoomName, 1, State) of
-%         {RoomName, Users} -> NewUsers = lists:delete(User, Users),
-%                              NewState = lists:delete({RoomName, Users}, State),
-%                              io:format("Unsubscribing user ~p~n", [User]),
-%                              {noreply, [{RoomName, NewUsers} | NewState]};
-%         false             -> io:format("error: user does not exist"),
-%                              {noreply, State}
-%     end.
 
 
 % terminates all the processes of the server
@@ -134,7 +118,8 @@ terminate(_Reason, State) ->
 join_room(Node, RoomName, Name, ListenerPid) ->
     Server = {tetris, Node},
     Player = {Name, self(), ListenerPid},
-    Reply = gen_server:call(Server, {joinroom, RoomName, {Name, self(), ListenerPid}}),
+    Reply = gen_server:call(Server, {joinroom, RoomName,
+                                     {Name, self(), ListenerPid}}),
     case Reply of
         Err when Err == room_full; Err == no_such_room -> Err;
         {Pid, NumPlayers} -> Pid ! {join_room, Player},
@@ -143,7 +128,8 @@ join_room(Node, RoomName, Name, ListenerPid) ->
 
 create_room(Node, RoomName, Name, NumPlayers, ListenerPid) -> 
     Server = {tetris, Node},
-    Pid = gen_server:call(Server, {newroom, RoomName, NumPlayers, {Name, self(), ListenerPid}}),
+    Pid = gen_server:call(Server, {newroom, RoomName, NumPlayers,
+                                   {Name, self(), ListenerPid}}),
     Pid.
 
 game_over(Node, RoomName) ->
