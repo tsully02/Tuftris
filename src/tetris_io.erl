@@ -1,11 +1,23 @@
 -module(tetris_io).
 
+% Tetris IO Module - implements low level interfacing with cecho
+
 -include_lib("../cecho/include/cecho.hrl").
 -include_lib("tetris.hrl").
 
--export([init/0, stop/0, spawn_keyboard_proc/0, set_auto_refresh/2, set_resize_recipient/2, calc_game_win_coords/2, draw_board/2, draw_tetromino/2, delete_tetromino/3, draw_title_screen/2, draw_centered_message/3, draw_ghost/3, text_box/3]).
--export([animate_clear_row/4, paint_screen/1, paint_box/3, draw_preview/3, set_color/1]).
+% Control functions
+-export([init/0, stop/0, spawn_keyboard_proc/0, set_auto_refresh/2,
+         set_resize_recipient/2]).
+% Drawing functions
+-export([draw_board/2, draw_tetromino/2, delete_tetromino/3,
+         draw_title_screen/2, draw_centered_message/3, draw_ghost/3,
+         paint_screen/1, paint_box/3, draw_preview/3]).
+% Animations/Interactive
+-export([text_box/3, animate_clear_row/4]).
+% Utilities
+-export([calc_win_coords/2, set_color/1]).
 
+% Initialize cecho, return {KeyboardPid, RefreshPid, MaxRow, MaxCol}
 init() ->
     application:start(cecho),
     ok = cecho:cbreak(),
@@ -14,12 +26,6 @@ init() ->
     cecho:keypad(?ceSTDSCR, true),
     pair_creation(),
     {MaxRow, MaxCol} = cecho:getmaxyx(),
-    cecho:move(10,10),
-    % {EndVertRow, EndVertCol} = add_vert_line(45, 49, 10),
-    cecho:attron(?ceCOLOR_PAIR(9)),
-    % add_check_horiz_line(EndVertRow, EndVertCol + 1, 10),
-    cecho:attron(?ceCOLOR_PAIR(2)),
-        % timer:sleep(1000),
 
     %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
     % keep this
@@ -38,22 +44,20 @@ init() ->
 stop() ->
     application:stop(cecho).
 
+% Main loop for keyboard process
 keyboard_loop(Client_Pid) ->
     Key = cecho:getch(),
     % TODO: FILTER OUT UNIMPORTANT KEY INPUT
     Client_Pid ! {self(), key, Key},
-    case Key of 
-        % $q ->
-        %     ok;
-        _ -> 
-            keyboard_loop(Client_Pid)
-    end.
+    keyboard_loop(Client_Pid).
 
-refresh_loop(MainPid, {MaxY, MaxX}, AutoRefresh) ->
+% Main loop for refresh process
+refresh_loop(Recipient, {MaxY, MaxX}, AutoRefresh) ->
     receive
-        {autorefresh, NewAutoRefresh} -> refresh_loop(MainPid, {MaxY, MaxX},
+        {autorefresh, NewAutoRefresh} -> refresh_loop(Recipient, {MaxY, MaxX},
                                                       NewAutoRefresh);
-        {setrecipient, Recipient} -> refresh_loop(Recipient, {MaxY, MaxX}, AutoRefresh)
+        {setrecipient, NewRecipient} -> refresh_loop(NewRecipient, {MaxY, MaxX},
+                                                  AutoRefresh)
     after 1000 ->
         case AutoRefresh of
             true -> cecho:refresh();
@@ -62,23 +66,29 @@ refresh_loop(MainPid, {MaxY, MaxX}, AutoRefresh) ->
         {NewMaxY, NewMaxX} = cecho:getmaxyx(),
         case {NewMaxY, NewMaxX} of
             {MaxY, MaxX} -> ok;
-            _ -> MainPid ! {self(), resize}
+            _ -> Recipient! {self(), resize}
         end,
-        refresh_loop(MainPid, {NewMaxY, NewMaxX}, AutoRefresh)
+        refresh_loop(Recipient, {NewMaxY, NewMaxX}, AutoRefresh)
     end.
 
+% Spawn the keyboard process that waits for keypresses and sends a message to
+% the current process
 spawn_keyboard_proc() ->
     Client = self(),
     spawn_link(fun () -> keyboard_loop(Client) end).
 
+% Spawn the refresh process that monitors for screen size changes and sends out
+% notifications
 spawn_refresh_proc() ->
     Client = self(),
     spawn_link(fun () -> refresh_loop(Client, cecho:getmaxyx(), true) end).
 
-% Configure auto refresh, i.e. whether the refresh proc calls cecho:refresh itself or leaves it up to another proc
+% Configure auto refresh, i.e. whether the refresh proc calls cecho:refresh
+% itself or leaves it up to another proc
 set_auto_refresh(RefreshPid, Enable) ->
     RefreshPid ! {autorefresh, Enable}.
 
+% Set which process receives resize notifications
 set_resize_recipient(RefreshPid, Recipient) ->
     RefreshPid ! {setrecipient, Recipient}.
 
@@ -89,16 +99,15 @@ draw_square({Row, Col}, {WinY, WinX, _, _}, Color) ->
     set_color(Color),
     cecho:mvaddstr(Row + WinY, Col + WinX, "  ").
 
-%%% calc_game_win_coords(Width, Height)
-%%% 
-%%% 
-calc_game_win_coords(Width, Height) ->
-    % io:format("Width: ~p~n", [Width]),
+% Compute a window of a given width and height given the current terminal size
+% Window: {Y, X, Width, Height}
+calc_win_coords(Width, Height) ->
     {MaxRow, MaxCol} = cecho:getmaxyx(),
     BeginX = (MaxCol - Width * 2) div 2,
     BeginY = (MaxRow - Height) div 2,
     {BeginY, BeginX, Width, Height}.
 
+% Redraw a full board given the board and a window
 draw_board(Board, Win) -> 
     Rows = lists:enumerate(Board),
     lists:map(fun ({Row, Cells}) ->
@@ -107,48 +116,49 @@ draw_board(Board, Win) ->
                              end, Cells)
               end, Rows).
 
-% draw tetromino
-draw_tetromino({Type, _Rotation, {CenterRow, CenterCol}, Cells}, Win) ->
-    set_color(Type),
-    draw_tetris_square({CenterRow, CenterCol * 2}, Win),
-    lists:foreach(fun ({R, C}) -> draw_tetris_square({R + CenterRow, C * 2 + CenterCol * 2}, Win) end, Cells),
-    cecho:refresh().
-
-draw_ghost({Type, _Rotation, {CenterRow, CenterCol}, Cells}, Win, _Board) ->
-    T = {Type, _Rotation, {CenterRow, CenterCol}, Cells},
+% Draw all the tetromino square in the current color
+draw_tetrmonino_squares(T, Win) ->
     Coords = tetromino:get_all_coords(T),
-    set_color(ghost),
     lists:foreach(fun ({R, C}) -> 
                         draw_tetris_square({R, C * 2}, Win) end, Coords),
     cecho:refresh().
 
-% get_color(Type) ->
-%     case Type of
-%         t -> ?T_COLOR; % PURPLE
-%         square -> ?SQUARE_COLOR; % YELLOW
-%         left -> ?LEFT_COLOR; % ORANGE
-%         right -> ?RIGHT_COLOR; % BLUE
-%         zigz -> ?ZIGZ_COLOR;
-%         zags -> ?ZAGS_COLOR;
-%         line -> ?LINE_COLOR;
-%         bg -> ?BACKGROUND_COLOR
-%     end.
-% delete tetromino
-% We have to remove a tetromino before redrawing it every time we make a move.
-% Right now, the background is not set, so this makes it look like a 
-% gray trail is always following the piece
-delete_tetromino({_Type, _Rotation, {CenterRow, CenterCol}, Cells}, Win, Board) ->
-    % cecho:attron(?ceCOLOR_PAIR(?BACKGROUND_COLOR)), % gray
-    draw_square({CenterRow, CenterCol * 2}, Win, board:get_color(Board, CenterRow, CenterCol)),
-    lists:foreach(fun ({R, C}) -> 
-        draw_square({R + CenterRow, (C + CenterCol) * 2}, Win, board:get_color(Board, R + CenterRow, C + CenterCol)) end, Cells).
+% Draw a tetromino given the piece and window
+draw_tetromino(T={Type, _Rotation, {_CenterRow, _CenterCol}, _Cells}, Win) ->
+    set_color(Type),
+    draw_tetrmonino_squares(T, Win).
 
+% Draw a tetromino as a ghost
+draw_ghost(T, Win, _Board) ->
+    set_color(ghost),
+    draw_tetrmonino_squares(T, Win).
+
+% Overwrite all cells taken up by a tetromino with the board contents at those
+% locations, erasing it
+delete_tetromino({_Type, _Rotation, {CenterRow, CenterCol}, Cells}, Win,
+                 Board) ->
+    draw_square({CenterRow, CenterCol * 2}, Win,
+                board:get_color(Board, CenterRow, CenterCol)),
+    lists:foreach(
+        fun ({R, C}) -> 
+            draw_square({R + CenterRow, (C + CenterCol) * 2}, Win,
+            board:get_color(Board, R + CenterRow, C + CenterCol)) 
+        end,
+        Cells).
+
+% Draw a solid colored box at the given absolute coordinates on the screen of
+% the current color
 paint_box(Coord, Width, Height) -> 
-    % io:format("coord: ~p~n", [Coord]),
     Spaces = lists:duplicate(Width, ?KEY_SPACE),
     List = lists:duplicate(Height, 10),
-    lists:foldl(fun (_, {Row, Col}) -> cecho:mvaddstr(Row, Col, Spaces), {Row + 1, Col} end, Coord, List).
+    lists:foldl(
+        fun (_, {Row, Col}) ->
+            cecho:mvaddstr(Row, Col, Spaces), {Row + 1, Col}
+        end,
+        Coord, List).
 
+% Draw the preview of upcoming pieces given the preview itself, a window, and
+% the background color
 draw_preview(Preview, Win, Color) ->
     set_color(Color),
     {RowW, ColW, _, _} = Win,
@@ -162,11 +172,17 @@ draw_preview(Preview, Win, Color) ->
                         T when T == line; T == square -> MidC + 1;
                         _ -> MidC
                     end,
-                    Coords = tetromino:get_abs_coords(tetromino:change_center(P, {R, NewC})),
-                    lists:foreach(fun (Coord) -> draw_tetris_square_abs(Coord) end, Coords),
+                    Coords = tetromino:get_abs_coords(
+                        tetromino:change_center(P, {R, NewC})),
+                    lists:foreach(
+                        fun (Coord) ->
+                            draw_tetris_square_abs(Coord)
+                        end,
+                        Coords),
                     R + 3
                   end, Row + 2, Preview).
 
+% Draw a tetris square at a given pair of absolute coordinates
 draw_tetris_square_abs({Row, Col}) ->
     cecho:mvaddstr(Row, Col, "[]"), ok.  
 
@@ -199,7 +215,7 @@ set_color(Type) ->
 
 
 %%% pair_creation()
-%%% Generates color pairs that will be used throughout the proga
+%%% Generates color pairs that will be used throughout the program
 pair_creation() ->
     % TColors = [?T_COLOR, ?SQUARE_COLOR, ?LEFT_COLOR, ?RIGHT_COLOR, ?ZIGZ_COLOR, 
     %     ?ZAGS_COLOR, ?LINE_COLOR],
@@ -212,16 +228,19 @@ pair_creation() ->
     ok = cecho:init_pair(4, ?ceCOLOR_BLACK, ?ceCOLOR_BLUE),
     ok = cecho:init_pair(5, ?ceCOLOR_BLACK, ?ceCOLOR_MAGENTA),
     ok = cecho:init_pair(6, ?ceCOLOR_BLACK, ?ceCOLOR_CYAN),
+    % Title text
     ok = cecho:init_pair(7, ?ceCOLOR_BLACK, ?TITLE_BGD_COLOR),
     ok = cecho:init_pair(8, ?ceCOLOR_BLACK, ?ceCOLOR_BLACK),
     ok = cecho:init_pair(9, ?ceCOLOR_BLACK, 9),
+    % Title logo
     ok = cecho:init_pair(10, 27, ?TITLE_BGD_COLOR),
     ok = cecho:init_pair(11, ?ceCOLOR_BLACK, ?SCREEN_BGD_COLOR),
     ok = cecho:init_pair(60, ?ceCOLOR_BLACK, 60), % GRAY
     ok = cecho:init_pair(203, ?ceCOLOR_BLACK, 203), % ORANGE
     ok = cecho:init_pair(200, ?ceCOLOR_BLACK, 200), % ORANGE
     ok = cecho:init_pair(92, ?ceCOLOR_BLACK, 92), % PURPLE
-    ok = cecho:init_pair(?BACKGROUND_COLOR, ?ceCOLOR_BLACK, ?BACKGROUND_COLOR), % BACKGROUND,
+    ok = cecho:init_pair(?BACKGROUND_COLOR, ?ceCOLOR_BLACK,
+                         ?BACKGROUND_COLOR), % BACKGROUND,
     ok = cecho:init_pair(39, ?ceCOLOR_BLACK, 39), % BACKGROUND
     ok = cecho:init_pair(?BORDER_COLOR, ?ceCOLOR_BLACK, ?BORDER_COLOR),
     ok = cecho:init_pair(?GHOST_COLOR, ?ceCOLOR_WHITE, ?BACKGROUND_COLOR),
@@ -232,23 +251,35 @@ pair_creation() ->
     ok = cecho:init_pair(?SILVER, ?ceCOLOR_BLACK, ?SILVER),
     ok = cecho:init_pair(?BRONZE, ?ceCOLOR_BLACK, ?BRONZE).
 
-
+% Fill the entire screen with a given color
 paint_screen(ColorType) ->
     {MaxRow, MaxCol} = cecho:getmaxyx(),
     XCoords = lists:seq(0, MaxCol, 2),
     YCoords = lists:seq(0, MaxRow),
     XYCoords = [{X,Y} || X <- XCoords, Y <- YCoords],
-    lists:foreach(fun ({Col, Row}) -> draw_square({Row, Col}, {0, 0, MaxCol, MaxRow}, ColorType) end, XYCoords),
+    lists:foreach(
+        fun ({Col, Row}) ->
+            draw_square({Row, Col}, {0, 0, MaxCol, MaxRow}, ColorType)
+        end,
+        XYCoords),
     cecho:refresh().
 
+% Draw a message centered in a window at row Row with a list of strings, one
+% for each line
 draw_centered_message(_, _, []) ->
     ok;
 draw_centered_message(Row, {WinY, WinX, WinWidth, WinHeight}, [Line | LineT]) ->
-    cecho:mvaddstr(Row + WinY, ((WinWidth * 2) - string:length(Line)) div 2 + WinX, Line),
+    cecho:mvaddstr(Row + WinY,
+                   ((WinWidth * 2) - string:length(Line)) div 2 + WinX,
+                   Line),
     draw_centered_message(Row + 1, {WinY, WinX, WinWidth, WinHeight}, LineT).
 
-animate_clear_row(RowNums, Sleep, Win, Length) -> animate_clear_row_r(RowNums, Sleep, Win, Length, 0).
+% Run the row clear animation given a list of rows, a delay between frames,
+% a window, and the length horizontally
+animate_clear_row(RowNums, Sleep, Win, Length) ->
+    animate_clear_row_r(RowNums, Sleep, Win, Length, 0).
 
+% Same arguments as above plus an index argument
 animate_clear_row_r([], _, _, _, _) ->
     ok;
 animate_clear_row_r(_, _Sleep, _Win,  Length, Length) ->
@@ -268,10 +299,9 @@ animate_clear_row_r(RowNums, Sleep, Win, Length, Curr) ->
     timer:sleep(Sleep),
     animate_clear_row_r(RowNums, Sleep, Win, Length, Curr + 1).
 
-draw_title_screen({WinY, WinX, Width, Height}, CenteredMessage) ->
-    TitleWin = {WinY, WinX, Width, Height},
+% Draw a title screen (with logo), given a window and the text to display
+draw_title_screen(TitleWin={WinY, WinX, Width, Height}, CenteredMessage) ->
     paint_screen(title),
-    % draw_logo(0, (?TITLESCR_WIDTH - ?LOGO_WIDTH), TitleWin),
     set_color(logo),
 
     cecho:mvaddstr(WinY, WinX, "+"),
@@ -285,6 +315,7 @@ draw_title_screen({WinY, WinX, Width, Height}, CenteredMessage) ->
     draw_centered_message(11, TitleWin, CenteredMessage),
     cecho:refresh().
 
+% Loop for waiting for text box input given existing input and the box width
 get_text_box_input([], Width) ->
     receive
         {_Pid, key, $\n} -> "";
@@ -298,35 +329,42 @@ get_text_box_input([], Width) ->
 get_text_box_input([PrevChar | PrevInput], Width) ->
     receive
         {_Pid, key, $\n} -> lists:reverse([PrevChar | PrevInput]);
-        {_Pid, key, ?ceKEY_BACKSPACE} when length(PrevInput) == (Width * 2) - 1 -> {Y, X} = cecho:getyx(),
-                                         cecho:move(Y, X + 1),
-                                         cecho:addch(?KEY_SPACE),
-                                         cecho:move(Y, X + 1),
-                                         cecho:refresh(),
-                                         get_text_box_input(PrevInput, Width);
+        {_Pid, key, ?ceKEY_BACKSPACE}
+            when length(PrevInput) == (Width * 2) - 1 ->
+                {Y, X} = cecho:getyx(),
+                cecho:move(Y, X + 1),
+                cecho:addch(?KEY_SPACE),
+                cecho:move(Y, X + 1),
+                cecho:refresh(),
+                get_text_box_input(PrevInput, Width);
         {_Pid, key, ?ceKEY_BACKSPACE} -> {Y, X} = cecho:getyx(),
                                          cecho:addch(?KEY_SPACE),
                                          cecho:move(Y, X),
                                          cecho:refresh(),
                                          get_text_box_input(PrevInput, Width);
-        {_Pid, key, Key} when length(PrevInput) < (Width * 2) - 2 -> cecho:refresh(),
-                                                                     get_text_box_input([Key | [PrevChar | PrevInput]], Width);
-        {_Pid, key, Key} when length(PrevInput) == (Width * 2) - 2 -> {Y, X} = cecho:getyx(),
-                            cecho:move(Y, X - 1),
-                            cecho:refresh(),
-                            get_text_box_input([Key | [PrevChar | PrevInput]], Width);
+        {_Pid, key, Key} when length(PrevInput) < (Width * 2) - 2 ->
+            cecho:refresh(),
+            get_text_box_input([Key | [PrevChar | PrevInput]], Width);
+        {_Pid, key, Key} when length(PrevInput) == (Width * 2) - 2 ->
+            {Y, X} = cecho:getyx(),
+            cecho:move(Y, X - 1),
+            cecho:refresh(),
+            get_text_box_input([Key | [PrevChar | PrevInput]], Width);
         {_Pid, key, Key} -> {Y, X} = cecho:getyx(),
                             cecho:move(Y, X - 1),
                             cecho:refresh(),
                             get_text_box_input([Key | PrevInput], Width)
     end.
 
+% Generate a text box of a given width, returning a list of strings
 generate_box(Width) ->
     Line = lists:concat(["+", lists:duplicate(Width * 2, $-), "+"]),
-    CenterRow = lists:concat(["|", lists:duplicate(Width * 2, ?KEY_SPACE), "|"]),
+    CenterRow = lists:concat(["|", lists:duplicate(Width * 2, ?KEY_SPACE),
+                              "|"]),
     [Line, CenterRow, Line].
 
-% Draw a text box where the typing location is at Row and of Width (2-col units), then return what the user typed
+% Draw a text box where the typing location is at Row and of
+% Width (2-col units), then return what the user typed
 text_box({WinY, WinX, WinWidth, WinHeight}, Width, Row) ->
     Win = {WinY, WinX, WinWidth, WinHeight},
     draw_centered_message(Row - 1, Win, generate_box(Width)),
@@ -338,3 +376,4 @@ text_box({WinY, WinX, WinWidth, WinHeight}, Width, Row) ->
     ok = cecho:curs_set(?ceCURS_INVISIBLE),
     ok = cecho:noecho(),
     Input.
+
