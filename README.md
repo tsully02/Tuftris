@@ -21,10 +21,20 @@ Build
 
 Run 
 -----
+  You must build before you run the following commands, and you must be running 
+  it on the Halligan server. Once the server is up, you can make rooms until 
+  it is down.
+
+    Server:
+    $ ssh vm-hw00
+    $ cd _build/default/lib/tetris/ebin
+    $ erl -name lebronjamie -setcookie monster
+    1> server:start_link().
+
     Client:
     $ ./tetris
-    Server:
     
+
 
 File Listing
 ------------

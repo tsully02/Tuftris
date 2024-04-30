@@ -18,7 +18,15 @@
 % Utilities
 -export([calc_win_coords/2, set_color/1]).
 
+-type window() :: {integer(), integer(), integer(), integer()}.
+-type coord() :: {integer(), integer()}.
+-type color() :: ghost | t | square | left | right | zigz | zags | line | bg |
+                 border | bigboy | scrbg | title | clear | logo | gold_text | 
+                 gold | silver_text | silver | bronze_text | bronze.
+-export_type([coord/0, window/0]).
+
 % Initialize cecho, return {KeyboardPid, RefreshPid, MaxRow, MaxCol}
+-spec init() -> {pid(), pid(), pos_integer(), pos_integer()}.
 init() ->
     application:start(cecho),
     ok = cecho:cbreak(),
@@ -30,7 +38,7 @@ init() ->
 
     %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
     % keep this
-    %% print out a ton of colors in a line
+    % print out a ton of colors in a line
     % peach = 200
     % Color = add_horiz_line_c(30, 0, 91, 0),
     % cecho:addstr(io_lib:format("~p", [Color])),
@@ -42,10 +50,13 @@ init() ->
     RefreshPid = spawn_refresh_proc(),
     {KeyPid, RefreshPid, MaxRow, MaxCol}.
 
+% Shutdown tetris_io functionality and reset the terminal
+-spec stop() -> ok.
 stop() ->
     application:stop(cecho).
 
 % Main loop for keyboard process
+-spec keyboard_loop(pid()) -> ok.
 keyboard_loop(Client_Pid) ->
     Key = cecho:getch(),
     % TODO: FILTER OUT UNIMPORTANT KEY INPUT
@@ -53,6 +64,7 @@ keyboard_loop(Client_Pid) ->
     keyboard_loop(Client_Pid).
 
 % Main loop for refresh process
+-spec refresh_loop(pid(), {pos_integer(), pos_integer()}, (true | false)) -> ok.
 refresh_loop(Recipient, {MaxY, MaxX}, AutoRefresh) ->
     receive
         {autorefresh, NewAutoRefresh} -> refresh_loop(Recipient, {MaxY, MaxX},
@@ -74,34 +86,45 @@ refresh_loop(Recipient, {MaxY, MaxX}, AutoRefresh) ->
 
 % Spawn the keyboard process that waits for keypresses and sends a message to
 % the current process
+-spec spawn_keyboard_proc() -> pid().
 spawn_keyboard_proc() ->
     Client = self(),
     spawn_link(fun () -> keyboard_loop(Client) end).
 
 % Spawn the refresh process that monitors for screen size changes and sends out
 % notifications
+-spec spawn_refresh_proc() -> pid().
 spawn_refresh_proc() ->
     Client = self(),
     spawn_link(fun () -> refresh_loop(Client, cecho:getmaxyx(), true) end).
 
 % Configure auto refresh, i.e. whether the refresh proc calls cecho:refresh
 % itself or leaves it up to another proc
+-spec set_auto_refresh(pid(), (true | false)) -> ok.
 set_auto_refresh(RefreshPid, Enable) ->
-    RefreshPid ! {autorefresh, Enable}.
+    RefreshPid ! {autorefresh, Enable},
+    ok.
 
 % Set which process receives resize notifications
+-spec set_resize_recipient(pid(), pid()) -> ok.
 set_resize_recipient(RefreshPid, Recipient) ->
-    RefreshPid ! {setrecipient, Recipient}.
+    RefreshPid ! {setrecipient, Recipient},
+    ok.
 
+% Draw a single tetris square at given coordinates
+-spec draw_tetris_square(coord(), window()) -> ok.
 draw_tetris_square({Row, Col}, {WinY, WinX, _, _}) ->
     cecho:mvaddstr(Row + WinY, Col + WinX, "[]"), ok.   
 
+% Draw a single square at given coordinates of a given color
+-spec draw_square(coord(), window(), color()) -> ok.
 draw_square({Row, Col}, {WinY, WinX, _, _}, Color) ->
     set_color(Color),
     cecho:mvaddstr(Row + WinY, Col + WinX, "  ").
 
 % Compute a window of a given width and height given the current terminal size
 % Window: {Y, X, Width, Height}
+-spec calc_win_coords(pos_integer(), pos_integer()) -> window().
 calc_win_coords(Width, Height) ->
     {MaxRow, MaxCol} = cecho:getmaxyx(),
     BeginX = (MaxCol - Width * 2) div 2,
@@ -109,33 +132,39 @@ calc_win_coords(Width, Height) ->
     {BeginY, BeginX, Width, Height}.
 
 % Redraw a full board given the board and a window
+-spec draw_board(board:board(), window()) -> ok.
 draw_board(Board, Win) -> 
     Rows = lists:enumerate(Board),
     lists:map(fun ({Row, Cells}) ->
                    array:map(fun (Col, {_, Color}) ->
                                   draw_square({Row - 1, Col * 2}, Win, Color) 
                              end, Cells)
-              end, Rows).
+              end, Rows),
+    ok.
 
 % Draw all the tetromino square in the current color
-draw_tetrmonino_squares(T, Win) ->
+-spec draw_tetromino_squares(tetromino:tetromino(), window()) -> ok.
+draw_tetromino_squares(T, Win) ->
     Coords = tetromino:get_all_coords(T),
     lists:foreach(fun ({R, C}) -> 
                         draw_tetris_square({R, C * 2}, Win) end, Coords),
     cecho:refresh().
 
 % Draw a tetromino given the piece and window
+-spec draw_tetromino(tetromino:tetromino(), window()) -> ok.
 draw_tetromino(T={Type, _Rotation, {_CenterRow, _CenterCol}, _Cells}, Win) ->
     set_color(Type),
-    draw_tetrmonino_squares(T, Win).
+    draw_tetromino_squares(T, Win).
 
 % Draw a tetromino as a ghost
+-spec draw_ghost(tetromino:tetromino(), window(), board:board()) -> ok.
 draw_ghost(T, Win, _Board) ->
     set_color(ghost),
-    draw_tetrmonino_squares(T, Win).
+    draw_tetromino_squares(T, Win).
 
 % Overwrite all cells taken up by a tetromino with the board contents at those
 % locations, erasing it
+-spec delete_tetromino(tetromino:tetromino(), window(), board:board()) -> ok.
 delete_tetromino({_Type, _Rotation, {CenterRow, CenterCol}, Cells}, Win,
                  Board) ->
     draw_square({CenterRow, CenterCol * 2}, Win,
@@ -149,6 +178,7 @@ delete_tetromino({_Type, _Rotation, {CenterRow, CenterCol}, Cells}, Win,
 
 % Draw a solid colored box at the given absolute coordinates on the screen of
 % the current color
+-spec paint_box(coord(), pos_integer(), pos_integer()) -> ok.
 paint_box(Coord, Width, Height) -> 
     Spaces = lists:duplicate(Width, ?KEY_SPACE),
     List = lists:duplicate(Height, 10),
@@ -160,6 +190,7 @@ paint_box(Coord, Width, Height) ->
 
 % Draw the preview of upcoming pieces given the preview itself, a window, and
 % the background color
+-spec draw_preview(tetris:preview(), window(), color()) -> ok.
 draw_preview(Preview, Win, Color) ->
     set_color(Color),
     {RowW, ColW, _, _} = Win,
@@ -181,13 +212,16 @@ draw_preview(Preview, Win, Color) ->
                         end,
                         Coords),
                     R + 3
-                  end, Row + 2, Preview).
+                  end, Row + 2, Preview),
+    ok.
 
 % Draw a tetris square at a given pair of absolute coordinates
+-spec draw_tetris_square_abs(coord()) -> ok.
 draw_tetris_square_abs({Row, Col}) ->
     cecho:mvaddstr(Row, Col, "[]"), ok.  
 
 % set color for each piece before printing, based on piece type
+-spec set_color(color()) -> ok.
 set_color(Type) ->
     Color = case Type of 
         ghost -> ?GHOST_COLOR;
@@ -217,6 +251,7 @@ set_color(Type) ->
 
 %%% pair_creation()
 %%% Generates color pairs that will be used throughout the program
+-spec pair_creation() -> ok.
 pair_creation() ->
     % lists:foldl(fun (T, Acc) -> cecho:init_pair()
     ok = cecho:start_color(),
@@ -250,6 +285,7 @@ pair_creation() ->
     ok = cecho:init_pair(?BRONZE, ?ceCOLOR_BLACK, ?BRONZE).
 
 % Fill the entire screen with a given color
+-spec paint_screen(color()) -> ok.
 paint_screen(ColorType) ->
     {MaxRow, MaxCol} = cecho:getmaxyx(),
     XCoords = lists:seq(0, MaxCol, 2),
@@ -264,6 +300,7 @@ paint_screen(ColorType) ->
 
 % Draw a message centered in a window at row Row with a list of strings, one
 % for each line
+-spec draw_centered_message(non_neg_integer(), window(), [[integer()]]) -> ok.
 draw_centered_message(_, _, []) ->
     ok;
 draw_centered_message(Row, {WinY, WinX, WinWidth, WinHeight}, [Line | LineT]) ->
@@ -274,10 +311,14 @@ draw_centered_message(Row, {WinY, WinX, WinWidth, WinHeight}, [Line | LineT]) ->
 
 % Run the row clear animation given a list of rows, a delay between frames,
 % a window, and the length horizontally
+-spec animate_clear_row([pos_integer()], pos_integer(), window(),
+                        pos_integer()) -> ok.
 animate_clear_row(RowNums, Sleep, Win, Length) ->
     animate_clear_row_r(RowNums, Sleep, Win, Length, 0).
 
 % Same arguments as above plus an index argument
+-spec animate_clear_row_r([pos_integer()], pos_integer(), window(),
+                          pos_integer(), non_neg_integer()) -> ok.
 animate_clear_row_r([], _, _, _, _) ->
     ok;
 animate_clear_row_r(_, _Sleep, _Win,  Length, Length) ->
@@ -298,6 +339,7 @@ animate_clear_row_r(RowNums, Sleep, Win, Length, Curr) ->
     animate_clear_row_r(RowNums, Sleep, Win, Length, Curr + 1).
 
 % Draw a title screen (with logo), given a window and the text to display
+-spec draw_title_screen(window(), [[integer()]]) -> ok.
 draw_title_screen(TitleWin={WinY, WinX, Width, Height}, CenteredMessage) ->
     paint_screen(title),
     set_color(logo),
@@ -314,6 +356,7 @@ draw_title_screen(TitleWin={WinY, WinX, Width, Height}, CenteredMessage) ->
     cecho:refresh().
 
 % Loop for waiting for text box input given existing input and the box width
+-spec get_text_box_input([integer()], pos_integer()) -> [integer()].
 get_text_box_input([], Width) ->
     receive
         {_Pid, key, $\n} -> "";
@@ -355,6 +398,7 @@ get_text_box_input([PrevChar | PrevInput], Width) ->
     end.
 
 % Generate a text box of a given width, returning a list of strings
+-spec generate_box(pos_integer()) -> [[integer()]].
 generate_box(Width) ->
     Line = lists:concat(["+", lists:duplicate(Width * 2, $-), "+"]),
     CenterRow = lists:concat(["|", lists:duplicate(Width * 2, ?KEY_SPACE),
@@ -363,6 +407,7 @@ generate_box(Width) ->
 
 % Draw a text box where the typing location is at Row and of
 % Width (2-col units), then return what the user typed
+-spec text_box(window(), pos_integer(), non_neg_integer()) -> [integer()].
 text_box({WinY, WinX, WinWidth, WinHeight}, Width, Row) ->
     Win = {WinY, WinX, WinWidth, WinHeight},
     draw_centered_message(Row - 1, Win, generate_box(Width)),
@@ -376,6 +421,7 @@ text_box({WinY, WinX, WinWidth, WinHeight}, Width, Row) ->
     Input.
 
 % Draw the ranking screen
+-spec draw_end_game_screen([{[integer()], pid()}]) -> ok.
 draw_end_game_screen(Rankings) ->
     cecho:refresh(),
     paint_screen(border),
@@ -400,6 +446,7 @@ draw_end_game_screen(Rankings) ->
     cecho:refresh().
 
 % Draw podiums given players, the row and column, and the ranking index
+-spec draw_podiums([{[integer()], pid()}], coord(), non_neg_integer()) -> ok.
 draw_podiums(_, _, 3) -> ok;
 draw_podiums([], _, _) -> ok;
 draw_podiums([{Name, _Pid} | T], {P_R, P_C}, Idx) -> 
@@ -417,8 +464,9 @@ draw_podiums([{Name, _Pid} | T], {P_R, P_C}, Idx) ->
     draw_podiums(T, {P_R, P_C}, Idx + 1).
 
 % Print the ranking display
+-spec print_rankings(list(), tuple(), integer()) -> ok.
 print_rankings([], _, _) -> ok;
-print_rankings([{Name, _Pid} | T], Win={R, C}, Idx) ->
+print_rankings([{Name, _Pid} | T], {R, C}, Idx) ->
     case Idx of
         0 -> set_color(gold_text);
         1 -> set_color(silver_text);

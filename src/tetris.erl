@@ -29,6 +29,13 @@
 
 -export([initiate/1, timer/2, get_game_width/1, clear_board_rows/2]).
 
+% Title screen status: {GameInfo={GameRoom, NumPlayers}, RoomName}
+-type title_scr_status() :: {game, {pid(), pos_integer()}} | quit.
+-type preview() :: [tetromino:tetromino()].
+-export_type([preview/0]).
+
+%%% initialite/1 acts as the main function
+-spec initiate([integer()]) -> ok.
 initiate(UserName) ->
     Painter = spawn_link(fun () -> painter:start(UserName) end),
     {_KeyPid, RefreshPid, _MaxRow, _MaxCol} = tetris_io:init(),
@@ -42,7 +49,8 @@ initiate(UserName) ->
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %%%%%%%%%% Title Screen %%%%%%%%%%
 
-%%% title_screen/2
+%%% title_screen/2 runs the title screen and returns the game status and room
+-spec title_screen([integer()], pid()) -> {title_scr_status(), [integer()]}.
 title_screen(UserName, Painter) ->
     Win = tetris_io:calc_win_coords(?TITLESCR_WIDTH, ?TITLESCR_HEIGHT),
     tetris_io:draw_title_screen(Win, ?TITLE_MSG),
@@ -50,7 +58,9 @@ title_screen(UserName, Painter) ->
     tetris_io:paint_screen(scrbg),
     {Status, RoomName}.
 
-%%% title_screen_keyboard_loop/3
+%%% title_screen_keyboard_loop/3 loops for keyboard input on the title screen
+-spec title_screen_keyboard_loop([integer()], tetris_io:window(), pid()) ->
+      {title_scr_status(), [integer()]}.
 title_screen_keyboard_loop(UserName, Win, Painter) ->
     receive
         {_Pid, key, $1} -> 
@@ -80,7 +90,10 @@ title_screen_keyboard_loop(UserName, Win, Painter) ->
         {_Pid, key, _} -> title_screen_keyboard_loop(UserName, Win, Painter)
     end.
 
-%%% create_multi_room/3
+%%% create_multi_room/3 handles the multiplayer room creation sequence and
+%%%                     returns the status
+-spec create_multi_room([integer()], tetris_io:window(), pid()) ->
+      {title_scr_status(), [integer()]}.
 create_multi_room(UserName, Win, Painter) ->
     tetris_io:draw_title_screen(Win, ["Enter a room name:"]),
     RoomName = tetris_io:text_box(Win, 15, 14),
@@ -100,7 +113,10 @@ create_multi_room(UserName, Win, Painter) ->
             end
     end.
 
-%%% join_multi_room/3
+%%% join_multi_room/3 handles the multiplayer room join sequence and
+%%%                   returns the status
+-spec join_multi_room([integer()], tetris_io:window(), pid()) ->
+      {title_scr_status(), [integer()]}.
 join_multi_room(UserName, Win, Painter) ->
     tetris_io:draw_title_screen(Win, ["Enter a room name:"]),
     RoomName = tetris_io:text_box(Win, 15, 14),
@@ -117,7 +133,9 @@ join_multi_room(UserName, Win, Painter) ->
         _ -> {{game, GameInfo}, RoomName}
     end.
 
-%%% get_num_players/1
+%%% get_num_players/1 prompts for the number of players and returns it, or 0 if
+%%% the user quits
+-spec input_num_players([[integer()]]) -> non_neg_integer().
 input_num_players(Msg) -> 
     receive
         {_Pid, key, Key} when Key =< $9, Key >= $2 -> 
@@ -132,14 +150,17 @@ input_num_players(Msg) ->
         {_Pid, key, _} -> input_num_players(Msg)
     end.
 
-%%% error_title/2
+%%% error_title/2 displays an error message and waits for the space bar
+-spec error_title(tetris_io:window(), [integer()]) -> ok.
 error_title(Win, Msg) ->
     FullMsg = [Msg, "Press [Space] to continue"],
     tetris_io:draw_title_screen(Win, FullMsg),
     receive_space(FullMsg),
     tetris_io:draw_title_screen(Win, ?TITLE_MSG).
 
-%%% receive_space/1
+%%% receive_space/1 waits for a space keypress and redraws a title screen given
+%%%                 a message on terminal resizes
+-spec receive_space([string()]) -> ok.
 receive_space(Msg) -> 
     receive
         {_Pid, key, ?KEY_SPACE}-> ok;
@@ -159,7 +180,9 @@ receive_space(Msg) ->
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %%%%%%%%%% TETRIS GAME LOGIC %%%%%%%%%% 
 
-%%% tetris/4
+%%% tetris/4 takes in a status from the title screen logic and processes it,
+%%%          starting the game or exiting
+-spec tetris(title_scr_status(), pid(), pid(), [integer()]) -> ok.
 tetris(quit, _, _, _) ->
     tetris_io:stop();
 tetris({game, {GameRoom, NumPlayers}}, Painter, RefreshPid, RoomName) ->
@@ -171,9 +194,10 @@ tetris({game, {GameRoom, NumPlayers}}, Painter, RefreshPid, RoomName) ->
     tetris_io:set_resize_recipient(RefreshPid, Painter),
     start_game(GameRoom, NumPlayers, Painter, Status, RefreshPid).
 
+
+%%% wait_to_start/3 waits for a start message from the game room
+-spec wait_to_start(tetris_io:window(), pid(), [[integer()]]) -> quit | ok.
 wait_to_start(TitleWin, GameRoom, Msg) ->
-    % io:format("waiting for input~n"),
-    
     receive
         {_Pid, start} -> ok;
         {_Pid, key, $q} ->
@@ -189,17 +213,18 @@ wait_to_start(TitleWin, GameRoom, Msg) ->
     end.
 
 
-
+%%% start_game/5 starts the game given the result of wait_to_start
+-spec start_game(pid(), pos_integer(), pid(), quit | ok, pid()) -> ok.
 start_game(_, _, _, quit, _) -> ok;
 start_game(GameRoom, NumPlayers, Painter, ok, RefreshPid) ->
     Win = tetris_io:calc_win_coords(get_game_width(NumPlayers), ?BOARD_HEIGHT),
     Board = board:create(?BOARD_WIDTH, ?BOARD_HEIGHT, bg),
-    T = tetromino:generate({1, 5}, GameRoom),
+    T = tetromino:generate({1, 5}, random),
     % GameRoom ! {newpiece, T, self()},
     tetris_io:paint_screen(border),
-    Preview = [tetromino:generate({1, 5}, GameRoom),
-               tetromino:generate({1, 5}, GameRoom),
-               tetromino:generate({1, 5}, GameRoom)],
+    Preview = [tetromino:generate({1, 5}, random),
+               tetromino:generate({1, 5}, random),
+               tetromino:generate({1, 5}, random)],
     Painter ! {self(), winboardprev, Win, Board, Preview},
     Painter ! {self(), draw},
     Painter ! draw,
@@ -210,7 +235,9 @@ start_game(GameRoom, NumPlayers, Painter, ok, RefreshPid) ->
     Pids = {TimerPid, GameRoom, Painter, RefreshPid},
     wait_for_input(T, Preview, Board, Pids).
 
-%%% wait_for_input/4
+%%% wait_for_input/4 acts as the main loop for keyboard input
+-spec wait_for_input(tetromino:tetromino(), preview(), board:board(),
+                     {pid(), pid(), pid(), pid()}) -> ok.
 wait_for_input(Tetromino, Preview, Board,
                Pids={TimerPid, GameRoom, Painter, RefreshPid}) ->
     receive
@@ -276,9 +303,13 @@ wait_for_input(Tetromino, Preview, Board,
 %%%         - the Game Room
 %%%         - The Painter
 %%% 
-%%% returns:
+%%% returns: {Tetromino, Preview, Board, Timer}, updated as needed
 %%%     
-%%% 
+%%%
+-spec process_key(integer(), tetromino:tetromino(), preview(),
+                  board:board(), {pid(), pid(), pid()}) ->
+      {tetromino:tetromino(), preview(), board:board(), pid()}
+      | blocked.
 process_key(Key, Tetromino, Preview, Board, Pids={Timer, GameRoom, Painter}) ->
     ResultTetromino = case Key of 
         % using q here instead of ?ceKEY_ESC because the latter seems to be slow
@@ -303,7 +334,7 @@ process_key(Key, Tetromino, Preview, Board, Pids={Timer, GameRoom, Painter}) ->
             {_Type, _Rotation, Center, _Cells} = Tetromino,
             {Row, _Col} = Center,
             case Row of
-                1 -> blockedOut();
+                1 -> blocked;
                 _ ->
                     case Key of 
                         ?ceKEY_DOWN -> 
@@ -333,7 +364,8 @@ process_key(Key, Tetromino, Preview, Board, Pids={Timer, GameRoom, Painter}) ->
             end
     end.
 
-%%% lost_input/4
+%%% lost_input/4 acts as the input loop after the user has lost
+-spec lost_input(pid(), pid(), pid(), pid()) -> ok.
 lost_input(GameRoom, Painter, RefreshPid, TimerPid) ->
     TimerPid ! {self(), killtimer},
     receive
@@ -345,7 +377,10 @@ lost_input(GameRoom, Painter, RefreshPid, TimerPid) ->
         {_Pid, key, $q} -> quit_game(GameRoom, Painter, RefreshPid, self())
     end.
 
-%%% end_game_screen/5
+%%% end_game_screen/5 displays the rankings and waits for a space press, then
+%%%                   leaves the game
+-spec end_game_screen([{[integer()], pid()}], pid(), pid(), pid(), pid()) ->
+      ok.
 end_game_screen(Rankings, GameRoom, Painter, RefreshPid, TimerPid) ->
     TimerPid ! {self(), killtimer},
     Painter ! {self(), username},
@@ -355,7 +390,8 @@ end_game_screen(Rankings, GameRoom, Painter, RefreshPid, TimerPid) ->
     get_space(),
     leave_game(GameRoom, Painter, RefreshPid, UserName).
 
-%%% leave_game/4
+%%% leave_game/4 leaves the game and returns tot he title screen, not returning
+-spec leave_game(pid(), pid(), pid(), string()) -> ok.
 leave_game(GameRoom, Painter, RefreshPid, UserName) ->
     GameRoom ! {playerquit, self()},
     Painter ! {lebron, jamie},
@@ -364,7 +400,9 @@ leave_game(GameRoom, Painter, RefreshPid, UserName) ->
     {Status, RoomName} = title_screen(UserName, Painter2),
     tetris(Status, Painter2, RefreshPid, RoomName).
 
-%%% quit_game/4
+%%% quit_game/4 quits out of the game and returns to the title screen, not
+%%%             returning
+-spec quit_game(pid(), pid(), pid(), pid()) -> ok.
 quit_game(GameRoom, Painter, RefreshPid, TimerPid) ->
     GameRoom ! {playerquit, self()},
     TimerPid ! {self(), killtimer},
@@ -387,21 +425,17 @@ quit_game(GameRoom, Painter, RefreshPid, TimerPid) ->
 
 
 
-%%% get_space/0
+%%% get_space/0 waits for a space key press
+-spec get_space() -> ok.
 get_space() ->
     receive 
         {_Pid, key, ?KEY_SPACE} -> ok;
         _ -> get_space()
     end.
 
-add_horiz_line_c(_, _, 0, ColorNum) -> ColorNum;
-add_horiz_line_c(Row, Col, Length, ColorNum) ->
-    cecho:init_pair(ColorNum, ?ceCOLOR_BLACK, ColorNum),
-    cecho:attron(?ceCOLOR_PAIR(ColorNum)),
-    cecho:mvaddch(Row, Col, $ ),
-    add_horiz_line_c(Row, Col + 1, Length - 1, ColorNum + 1).
-
-
+%%% new_timer/2 gets the speed from the listener and spawns a new timer
+%%%             function to move the piece down a the time interval.
+-spec new_timer(pid(), pid()) -> pid().
 new_timer(Pid, Painter) ->
     Painter ! {self(), speed},
     Speed = receive 
@@ -409,6 +443,9 @@ new_timer(Pid, Painter) ->
     end,
     spawn(fun () -> timer(Pid, Speed) end).
 
+%%% check_clear_row/3 checks whether a piece cleared any rows and, if so, sends
+%%%                   sends a message to the game room
+-spec check_clear_row(tetromino:tetromino(), board:board(), pid()) -> ok.
 check_clear_row({Type, Rotation, Center, Cells}, Board, GameRoom) ->
     Placed = tetromino:get_all_coords({Type, Rotation, Center, Cells}),
     Sorted = lists:sort(fun ({R1, _}, {R2, _}) -> R1 < R2 end, Placed),
@@ -431,18 +468,29 @@ check_clear_row({Type, Rotation, Center, Cells}, Board, GameRoom) ->
             ok
     end.
 
-
+%%% get_user/1 returns the username of the current player.
+-spec get_user(pid()) -> string().
 get_user(Painter) ->
     receive
         {Painter, user, UserName} -> UserName
     end.
 
 
+
+%%% next_piece/2 removes the next piece from the preview and adds another new
+%%%              random piece
+-spec next_piece(preview(), pid()) -> {tetromino:tetromino(), preview()}.
 next_piece([Piece | Tail], GameRoom) ->
-    Ret = {Piece, lists:append([Tail, [tetromino:generate({1, 5}, GameRoom)]])},
+    Ret = {Piece, lists:append([Tail, [tetromino:generate({1, 5}, random)]])},
     GameRoom ! {newpiece, Piece, self()},
     Ret.
 
+
+
+%%% timer/2 acts as the loop for the timer process with a given target PID and
+%%%         time between messages. It sends the target PID timer message every
+%%%         Time.
+-spec timer(pid(), pos_integer()) -> ok.
 timer(Pid, Time) ->
     timer:sleep(Time),
     receive
@@ -453,19 +501,24 @@ timer(Pid, Time) ->
              timer(Pid, Time)
     end.
 
+
+%%% get_game_width/1 returns the total game of the board given the number of
+%%%                  players in the game room
+-spec get_game_width(integer()) -> integer().
 get_game_width(1) ->
     ?BOARD_WIDTH;
 get_game_width(NumPlayers) when NumPlayers > 1 ->
     ?BOARD_WIDTH * NumPlayers + 2.
 
-% TODO: Implement BlockedOut behavior
-blockedOut() ->
-    blocked.
-
+%%% clear_board_rows/2 clears all rows in board
+-spec clear_board_rows(list(integer()), board:board()) -> board:board().
 clear_board_rows(Rows, Board) ->
     lists:foldl(fun (R, CurrBoard) -> board:remove_row(CurrBoard, R) end,
                 Board, Rows).
 
+%%% clear_row removes the given rows from the given board
+-spec clear_row(list(integer()), board:board(), pid(), tetromino:tetromino()) ->
+                     board:board().
 clear_row(Rows, Board, Painter, Tetromino) ->
     NewBoard = clear_board_rows(Rows, Board),
     Painter ! {self(), clear_row, NewBoard, Rows, Tetromino},
@@ -473,17 +526,3 @@ clear_row(Rows, Board, Painter, Tetromino) ->
         {Painter, continue} -> ok
     end,
     NewBoard. 
-
-
-%%% TODOs:
-%%% - swap pieces
-%%% - print level
-%%% - change colors
-%%% - server lightswitch
-%%% % TODO: Implement BlockedOut behavior????
-%%% 
-%%% INTRERSTING BUGS
-%%% - drawing from a single process
-%%% - row clearing simple fix problems
-%%% - row cl
-%%% - overhang bug
