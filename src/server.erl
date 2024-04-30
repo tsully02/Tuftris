@@ -1,4 +1,13 @@
-
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%% server.erl
+%%% 
+%%% Server Module: contains the master server that manages and creates game
+%%%                rooms
+%%% 
+%%% Important Data Structures
+%%%     - State: [{RoomName, Pid, MaxPlayers, [{PlayerName, Pid, PainterPid}]}]
+%%%     - Player: {Name, Pid, PainterPid}
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 -module(server).
 -behaviour(gen_server).
@@ -19,33 +28,30 @@
 %%%===================================================================
 
 % begins the server so clients and users can create rooms and add chat!
-% -spec start_link() -> pid().
+-spec start_link() -> {'error', _} | {'ok', pid()}.
 start_link() -> gen_server:start_link({local, tetris}, ?MODULE, [], []).
 
 % stops the server, terminating all client processes
-% -spec stop() -> ok.
+-spec stop() -> ok.
 stop() -> gen_server:stop(tetris).
 
 %%%===================================================================
 %%% Server Functions
 %%%===================================================================
 
-% initializes the state of the server
-% -spec init(list()) -> tuple().
-init(_Args) -> {ok, []}.
+-type room() :: {[integer()], pid(), integer(),
+                 [game:player()]}.
+-type state() :: [room()].
 
-%%%
-%%% State:
-%%% 
-%%% [{RoomName, {Pid, Node}, MaxPlayers, [{PlayerName, {Pid, Node}}]}]
+% initializes the state of the server
+-spec init(list()) -> {ok, state()}.
+init(_Args) -> {ok, []}.
 
 
 % manages the calls sent to the gen_server, generating replies
-% -spec handle_call(term(), pid(), list()) -> ok.
+-spec handle_call(term(), {pid(),gen_server:reply_tag()}, list()) ->
+      {reply, any(), state()}.
 
-%%% 
-%%% Player = {Name, {Pid, Node}}
-%%% 
 handle_call({newroom, RoomName, NumPlayers, Player}, _From, State) -> 
     IsRoom = is_room(RoomName, State),
     case IsRoom of 
@@ -75,18 +81,33 @@ handle_call({delete, RoomName}, _From, State) ->
     {reply, ok, NewState}.
 
 
+%%% delete_room/2 takes a room name and the list of rooms and removes the room
+%%%               from the list
+-spec delete_room([integer()], [room()]) -> [room()].
+
 delete_room(_, []) -> [];
 delete_room(RoomName, [{RoomName, _, _, _} | T]) ->
     delete_room(RoomName, T);
 delete_room(RoomName, [H | T]) ->
     [H | delete_room(RoomName, T)].
 
+
+%%% is_room/2 returns whether a room by a certain name exists
+-spec is_room([integer()], state()) -> (true | false).
+
 is_room(RoomName, State) ->
     lists:any(fun ({Room, _, _, _}) -> equal(Room, RoomName) end, State).
+
+
+%%% get_room/2 gets the room of a certain name
+-spec get_room([integer()], state()) -> room() | false.
 
 get_room(RoomName, State) ->
     lists:keyfind(RoomName, 1, State).
 
+
+%%% add_player/3 adds a player to a room of a given name
+-spec add_player([integer()], game:player(), [room(),...]) -> [room(),...].
 add_player(RoomName, Player, [{RoomName, RoomInfo, NumP, PlayerList} | T]) -> 
     [{RoomName, RoomInfo, NumP, [Player | PlayerList]} | T];
 add_player(RoomName, Player, [H | T]) -> 
@@ -114,23 +135,43 @@ terminate(_Reason, State) ->
 %%% Client Functions
 %%%===================================================================
 
-% adds the user to the given room running on the given server
-join_room(Node, RoomName, Name, ListenerPid) ->
+%%% join_room/4 adds the user to the given room running on the given server
+%%% node with the given username and painter PID, and returns
+%%% {RoomPid, NumPlayers}
+-spec join_room(atom(), [integer()], [integer()], pid()) ->
+      {pid(), non_neg_integer()} | room_full | no_such_room.
+
+join_room(Node, RoomName, Name, PainterPid) ->
     Server = {tetris, Node},
-    Player = {Name, self(), ListenerPid},
+    Player = {Name, self(), PainterPid},
     Reply = gen_server:call(Server, {joinroom, RoomName,
-                                     {Name, self(), ListenerPid}}),
+                                     {Name, self(), PainterPid}}),
     case Reply of
         Err when Err == room_full; Err == no_such_room -> Err;
         {Pid, NumPlayers} -> Pid ! {join_room, Player},
-             {Pid, NumPlayers}
+                             {Pid, NumPlayers}
     end.
 
-create_room(Node, RoomName, Name, NumPlayers, ListenerPid) -> 
+
+%%% create_room/5 creates a new room
+%%% Arguments:
+%%%     Node: Node name of server
+%%%     RoomName: Room name to create
+%%%     Name: Username of first player
+%%%     NumPlayers: Number of players for the room
+%%%     PainterPid: Painter PID of first player
+-spec create_room(atom(), [integer()], [integer()], pos_integer(), pid()) ->
+      {pid(), non_neg_integer()} | already_exists.
+
+create_room(Node, RoomName, Name, NumPlayers, PainterPid) -> 
     Server = {tetris, Node},
     Pid = gen_server:call(Server, {newroom, RoomName, NumPlayers,
-                                   {Name, self(), ListenerPid}}),
+                                   {Name, self(), PainterPid}}),
     Pid.
+
+
+%%% game_over/2 removes a game room on a given node
+-spec game_over(atom(), [integer()]) -> ok.
 
 game_over(Node, RoomName) ->
     Server = {tetris, Node},

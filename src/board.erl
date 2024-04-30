@@ -18,9 +18,13 @@
          remove_rand_row/2, create_random/2]).
 
 
+-type board_row() :: array:array({atom(), atom()}).
+-type board() :: [board_row()].
+-export_type([board/0]).
+
 %%% create/3 creates a new board of the given width and height filled with
 %%%          the given color.
--spec create(integer(), integer(), atom()) -> list().
+-spec create(integer(), integer(), atom()) -> board().
 
 create(Width, Height, Color) ->
     List = list_of_arrays(Height, [], Width),
@@ -37,7 +41,7 @@ create(Width, Height, Color) ->
 %%% create_random/2 creates a new board of the given width and height filled
 %%%                 with random colors. It is used to generate the background
 %%%                 that shows that players have blocked out and lost the game.
--spec create_random(integer(), integer()) -> list().
+-spec create_random(integer(), integer()) -> board().
 
 create_random(Width, Height) ->
     List = list_of_arrays(Height, [], Width),
@@ -53,7 +57,7 @@ create_random(Width, Height) ->
 
 
 %%% list_of_arrays/3 creates a list of arrays of a provided length.
--spec list_of_arrays(integer(), list(), integer()) -> list().
+-spec list_of_arrays(integer(), list(), integer()) -> list(array:array()).
 
 list_of_arrays(0, List, _ArrLen) -> List;
 list_of_arrays(LLen, List, ArrLen) ->
@@ -63,7 +67,7 @@ list_of_arrays(LLen, List, ArrLen) ->
 %%% get_cell/3 returns the raw value of the board at a given row and column.
 %%%            Because lists are 1-indexed and arrays are 0-indexed, this
 %%%            function performs the math to get the correct location.
--spec get_cell(list(), integer(), integer()) -> tuple().
+-spec get_cell(board(), integer(), integer()) -> tuple().
 
 get_cell(Board, Row, Col) ->
     Arr = lists:nth(Row + 1, Board),
@@ -72,7 +76,7 @@ get_cell(Board, Row, Col) ->
 
 %%% set_cell/4 replaces the current value of a given board at the given set of
 %%%            coordinates with the provided new value.
--spec set_cell(list(), tuple(), integer(), integer()) -> tuple().
+-spec set_cell(board(), tuple(), integer(), integer()) -> board().
 
 set_cell(Board, Val, Row, Col) ->
     set_cell_r(Board, Val, Row, Col, 0).
@@ -81,7 +85,7 @@ set_cell(Board, Val, Row, Col) ->
 %%% set_cell_r/5 is the helper function for set_cell. It takes the board, the
 %%%              new value, the target row and column, and an accumulation
 %%%              integer for the recursive search.
--spec set_cell_r(list(), tuple(), integer(), integer(), integer()) -> list().
+-spec set_cell_r(board(), tuple(), integer(), integer(), integer()) -> board().
 
 set_cell_r([], _, _, _, _) -> [];
 set_cell_r([BH | BT], Val, Row, Col, Row) -> 
@@ -92,7 +96,7 @@ set_cell_r([BH | BT], Val, Row, Col, Curr) ->
 
 %%% is_filled/3 returns if the given position on the board is occupied by a
 %%%             piece
--spec is_filled(list(), integer(), integer()) -> atom().
+-spec is_filled(board(), integer(), integer()) -> atom().
 
 is_filled(Board, Row, Col) ->
     {Filled, _Type} = get_cell(Board, Row, Col),
@@ -100,7 +104,7 @@ is_filled(Board, Row, Col) ->
 
 
 %%% get_color/3 returns the color of the cell at the given position on the board
--spec get_color(list(), integer(), integer()) -> atom().
+-spec get_color(board(), integer(), integer()) -> atom().
 
 get_color(Board, Row, Col) ->
     {_Filled, Type} = get_cell(Board, Row, Col),
@@ -109,7 +113,7 @@ get_color(Board, Row, Col) ->
 
 %%% place_piece/2 places a falling piece into the board state, marking those
 %%%               cells are filled and returning the updated board
--spec place_piece(list(), tuple()) -> list()
+-spec place_piece(board(), tuple()) -> board().
 
 place_piece(Board, Tetromino) ->
     Piece = tetromino:get_all_coords(Tetromino),
@@ -124,7 +128,7 @@ place_piece(Board, Tetromino) ->
 %%% remove_row_f/3 removes the given row from the board and inserts a new row
 %%%                at the top. The new row will be empty or full depending on
 %%%                the player and the board.
--spec remove_row_f(list(), integer(), function()) -> list().
+-spec remove_row_f(board(), integer(), function()) -> board().
 
 remove_row_f(Board, Row, NewRowFunc) ->
     {Above, Below} = lists:split(Row + 1, Board),
@@ -136,7 +140,7 @@ remove_row_f(Board, Row, NewRowFunc) ->
 
 %%% remove_row/2 removes the given row from the board and inserts a new empty
 %%%              row at the top.
--spec remove_row_f(list(), integer()) -> list().
+-spec remove_row(board(), integer()) -> board().
 
 remove_row(Board, Row) ->
     remove_row_f(Board, Row, fun generate_empty_row/1).
@@ -144,13 +148,13 @@ remove_row(Board, Row) ->
 
 %%% remove_rand_row/2 removes the given row from the board and inserts a new
 %%%                   randomly filled row at the top.
--spec remove_rand_row(list(), integer()) -> list().
+-spec remove_rand_row(board(), integer()) -> board().
 remove_rand_row(Board, Row) ->
     remove_row_f(Board, Row, fun generate_rand_row/1).
 
 
 %%% generate_rand_row/1 generates a single random row.
--spec generate_rand_row(integer()) -> array().
+-spec generate_rand_row(non_neg_integer()) -> board_row().
 
 generate_rand_row(Width) ->
     Arr = array:new(Width),
@@ -163,7 +167,7 @@ generate_rand_row(Width) ->
 
 
 %%% generate_empty_row/1 generates a single empty row
--spec generate_empty_row(integer()) -> array().
+-spec generate_empty_row(non_neg_integer()) -> board_row().
 
 generate_empty_row(Width) ->
     Arr = array:new(Width),

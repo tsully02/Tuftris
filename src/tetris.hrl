@@ -72,7 +72,10 @@
 -define(GHOST_COLOR, 250). % refers to the color pair
 
 
--define(TITLE_MSG, ["Press:", "1 - Single player", "2 - Create a multiplayer room", "3 - Join a multiplayer room", "q - Quit"]).
+-define(TITLE_MSG, ["Press:",
+                    "1 - Single player", "2 - Create a multiplayer room",
+                    "3 - Join a multiplayer room",
+                    "q - Quit"]).
 
 -define(KEYBINDS, ["[q]: Quit game      [up]: Rotate clockwise  [space]: Hard drop   [z]: Rotate counter clockwise",
                    "[left]: Move left   [down]: Soft drop       [right]: Move right                               "]).
